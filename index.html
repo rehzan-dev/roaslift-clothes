@@ -28,7 +28,12 @@
   <div class="loader-inner">
     <div class="loader-stage">
       <canvas id="loaderCanvas" aria-hidden="true"></canvas>
-      <img id="loaderLogoImg" src="images/logo-light-web.png" alt="ROASLift" width="440" height="309">
+      <!-- No-WebGL fallback: brand mark + the hero jacket as a still photo.
+           Hidden the moment the 3D canvas is ready. -->
+      <div class="loader-fallback">
+        <img id="loaderLogoImg" src="images/logo-light-web.png" alt="ROASLift" width="440" height="309">
+        <img id="loaderJacketImg" src="images/jacket-brown-suede-bomber-web.jpg" alt="Cognac Suede Bomber">
+      </div>
     </div>
     <div class="loader-pct"><span id="loaderPct">000</span><span class="loader-pct-sign">%</span></div>
     <div class="loader-bar"><span id="loaderBarFill"></span></div>

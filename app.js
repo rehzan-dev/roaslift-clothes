@@ -1,5 +1,5 @@
 /* =====================================================================
-   ROASLift Clothes — single-page 3D store (V3.1)
+   ROASLift Clothes — single-page 3D store (V3.2)
    Structure:
    1. Data (products, sizes)
    2. Helpers + state (cart, wishlist) + toast + smooth scroll
@@ -18,7 +18,7 @@
    ===================================================================== */
 
 /* ---------------- 1. Data ---------------- */
-/* 4-product catalog (V3.1). backCutout/backDepth = the real back photo,
+/* 4-product catalog (V3.2). backCutout/backDepth = the real back photo,
    bg-removed, aligned to the front cut-out's bbox (see align_backs.py);
    a product WITHOUT them keeps the navy jacket-silhouette back.
    extras = switchable front views in the viewer (view 0 is always the
@@ -225,6 +225,7 @@ function renderCart() {
 
 /* ---------------- 3. Loader ---------------- */
 var loaderDone = false;
+var loaderProgress = 0; /* 0..1, raw counter progress — drives the jacket spin */
 var revealCallbacks = [];
 function onReveal(fn) { revealCallbacks.push(fn); }
 
@@ -249,7 +250,11 @@ function revealSite() {
 function initLoader() {
   var pctEl = $('#loaderPct');
   var barEl = $('#loaderBarFill');
-  var DURATION = 1900; /* fast on purpose — DUDEFOX took ~5s */
+  /* QA hook: window.__loaderDurationScale stretches the loader (and its
+     safety) so screenshots can catch mid-spin frames in slow SwiftShader
+     — production never sets it, so it is always 1 there. */
+  var timeScale = window.__loaderDurationScale || 1;
+  var DURATION = 2200 * timeScale; /* one full jacket turn fits inside it */
   /* The counter advances by at most 250ms per frame, not by raw wall
      time: on a slow device the Three.js module can block the main thread
      for seconds, and a wall-clock counter would jump straight to 100
@@ -263,6 +268,7 @@ function initLoader() {
     elapsed += Math.min(now - prev, 250);
     prev = now;
     var p = clamp(elapsed / DURATION, 0, 1);
+    loaderProgress = p; /* raw (linear) progress — the jacket spins at constant speed */
     var eased = 1 - Math.pow(1 - p, 2);
     var val = Math.round(eased * 100);
     pctEl.textContent = String(val).padStart(3, '0');
@@ -276,7 +282,7 @@ function initLoader() {
      so a slow device still gets its counter + assembly after a long
      module-evaluation block; a failed load still reveals via the
      counter itself, which does not depend on Three.js. */
-  setTimeout(revealSite, 6000);
+  setTimeout(revealSite, 6000 * timeScale);
 }
 
 /* ---------------- 4. Three.js ---------------- */
@@ -440,11 +446,12 @@ function featherDepthTexture(colorImg, depthImg) {
    plus a back face behind it. Jackets with a back photo show the REAL
    back (same relief treatment, aligned to the front silhouette); the one
    without (Cocoa Wool) keeps the navy ROASLIFT back clipped to the jacket
-   silhouette — never a rectangle. */
-function makeGarmentGroup(product) {
+   silhouette — never a rectangle. texOverride lets the loader build its
+   jacket from its own texture loads instead of the boot's globals. */
+function makeGarmentGroup(product, texOverride) {
   var group = new THREE.Group();
   var geo = new THREE.PlaneGeometry(GARMENT_W, GARMENT_H, 48, 72);
-  var tex = textures[product.id] || {};
+  var tex = texOverride || textures[product.id] || {};
   var frontMat = new THREE.MeshStandardMaterial({
     map: tex.color || null,
     displacementMap: tex.depth || null,
@@ -568,21 +575,32 @@ function addAssemblePart(mesh, fromPos, fromRotZ, delay, dur, fadeMat) {
 
 var loaderAnimId = null;
 var loaderRenderer = null; /* freed in revealSite once the loader is hidden */
+var loaderJacket = null; /* hero garment group — built once its textures arrive */
+var loaderJacketBornAt = 0; /* loader-clock time the jacket appeared (for its scale-in) */
+var LOGO_Y = 3.3; /* logo group height: small brand mark above the jacket */
+/* The cut-out's opaque jacket fills only ~67% of its plane's height
+   (bbox y 204–1042 of 1247, measured), so the plane must be scaled 2.1x
+   for the VISIBLE jacket to stand ~56vh tall on a 900px desktop. */
+var JACKET_SCALE = 2.1;
 function initLoaderScene() {
   if (loaderDone) return; /* loader already revealed — no scene to build */
   var canvas = $('#loaderCanvas');
   var renderer;
   try { renderer = makeRenderer(canvas); }
-  catch (e) { return; } /* keep the PNG logo visible */
+  catch (e) { return; } /* keep the PNG logo + jacket photo visible */
   loaderRenderer = renderer;
   canvas.classList.add('ready');
   var scene = new THREE.Scene();
   var camera = new THREE.PerspectiveCamera(40, 1, 0.1, 50);
-  camera.position.set(0, 0.4, 8.4);
-  camera.lookAt(0, 0.4, 0);
+  camera.position.set(0, 0.5, 10.5);
+  camera.lookAt(0, 0.5, 0);
   addLights(scene);
 
   var group = new THREE.Group();
+  /* The logo is subordinate now — the jacket is the star — so the whole
+     assembling mark is scaled down and parked above the jacket. */
+  group.scale.setScalar(0.30);
+  group.position.y = LOGO_Y;
   var arrowParts = buildArrowParts();
   var arrowMat = new THREE.MeshStandardMaterial({ color: ACCENT, metalness: 0.35, roughness: 0.35 });
   var arrowShaft = new THREE.Mesh(arrowParts.shaft, arrowMat);
@@ -614,6 +632,45 @@ function initLoaderScene() {
   scene.add(group);
 
   var clock = new THREE.Clock();
+
+  /* Rotating hero jacket (Cognac Suede Bomber): the same depth-relief
+     garment the viewer builds, from its own texture loads — the loader
+     must never wait on the boot's full texture set, and texOverride
+     keeps the two flows independent (the boot feathers its own copies
+     later). Front + real back + both depth maps, feathered the same way
+     as the viewer so the rim never tears at 90°. */
+  (function loadLoaderJacket() {
+    var hero = PRODUCTS[HERO_INDEX];
+    var jacketTex = new THREE.TextureLoader();
+    Promise.all([
+      jacketTex.loadAsync(hero.cutout),
+      jacketTex.loadAsync(hero.depth),
+      jacketTex.loadAsync(hero.backCutout),
+      jacketTex.loadAsync(hero.backDepth)
+    ]).then(function (loaded) {
+      if (loaderDone) return; /* revealed already — no jacket to show */
+      loaded[0].colorSpace = THREE.SRGBColorSpace; loaded[0].anisotropy = 4;
+      loaded[2].colorSpace = THREE.SRGBColorSpace; loaded[2].anisotropy = 4;
+      var texSet = { color: loaded[0], depth: loaded[1],
+                     backColor: loaded[2], backDepth: loaded[3] };
+      try { texSet.depth = featherDepthTexture(loaded[0].image, loaded[1].image); }
+      catch (e) { /* keep the raw depth map */ }
+      try { texSet.backDepth = featherDepthTexture(loaded[2].image, loaded[3].image); }
+      catch (e) { /* keep the raw back depth map */ }
+      var jacket = makeGarmentGroup(hero, texSet);
+      /* JACKET_SCALE: the visible jacket stands ~56vh tall on desktop. */
+      jacket.scale.setScalar(JACKET_SCALE);
+      jacket.position.y = -0.35;
+      scene.add(jacket);
+      loaderJacket = jacket;
+      loaderJacketBornAt = clock.getElapsedTime();
+      window.__loaderJacket = jacket; /* QA hook: rotation + presence */
+      var shadow = makeContactShadow();
+      shadow.scale.set(4.2, 1.5, 1);
+      shadow.position.y = -2.95;
+      scene.add(shadow);
+    }).catch(function () { /* jacket stays out — logo-only loader */ });
+  })();
 
   /* Try to upgrade the wordmark to extruded 3D text (non-blocking). */
   (function load3DText() {
@@ -682,6 +739,29 @@ function initLoaderScene() {
     loaderAnimId = requestAnimationFrame(animate);
     var t = clock.getElapsedTime();
     sizeRendererToCanvas(renderer, camera);
+    /* Keep the jacket inside the frame on narrow (portrait) canvases:
+       pull the camera back until the visible width clears the jacket
+       (2.1 x 2.3 x 0.93 opaque width + margin) — 7.0/aspect. Wide
+       canvases stay at the base distance. */
+    camera.position.z = Math.max(10.5, 7.0 / Math.max(camera.aspect, 0.2));
+    if (loaderJacket) {
+      if (reducedMotion) {
+        /* No spin — a still front view. */
+        loaderJacket.rotation.y = 0;
+      } else {
+        /* One full turn across the loader, driven by the counter's raw
+           progress (not the clock) so the spin and the counter can never
+           drift apart — even on a slow device where frames stall. Starts
+           45° off-front so the first frames already read as mid-spin,
+           shows the real back at ~62% and is nearly front again at the
+           reveal. */
+        loaderJacket.rotation.y = -Math.PI / 4 + loaderProgress * Math.PI * 2;
+      }
+      /* Gentle scale-in so the jacket never pops when its textures land. */
+      var born = clamp((t - loaderJacketBornAt) / 0.3, 0, 1);
+      var ease = 1 - Math.pow(1 - born, 3);
+      loaderJacket.scale.setScalar(JACKET_SCALE * (0.92 + 0.08 * ease));
+    }
     if (!reducedMotion) {
       /* Drive the assembly: every part eases from its scattered offset
          into place with a slight overshoot. */
@@ -693,10 +773,11 @@ function initLoaderScene() {
         if (part.fadeMat) { part.fadeMat.opacity = p; }
       });
       /* Gentle sway only starts once the logo has assembled (~1.4s), so
-         it never fights the assembly motion. */
+         it never fights the assembly motion. The bob is relative to the
+         logo's parked height — it must never overwrite it. */
       var swayT = Math.max(0, t - 1.4);
       group.rotation.y = Math.sin(swayT * 0.6) * 0.28;
-      group.position.y = Math.sin(swayT * 1.1) * 0.08;
+      group.position.y = LOGO_Y + Math.sin(swayT * 1.1) * 0.08;
     }
     renderer.render(scene, camera);
   })();
