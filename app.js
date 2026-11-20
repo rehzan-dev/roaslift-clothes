@@ -1,10 +1,10 @@
 /* =====================================================================
-   ROASLift Clothes — single-page 3D store (V3.2)
+   ROASLift Clothes — single-page 3D store (V3.3)
    Structure:
    1. Data (products, sizes)
    2. Helpers + state (cart, wishlist) + toast + smooth scroll
-   3. Loader (counter, skip, split-curtain reveal)
-   4. Three.js (garment factory, loader logo, hero->viewer showcase,
+   3. Loader (SVG logo animation, counter, skip, split-curtain reveal)
+   4. Three.js (garment factory, hero->viewer showcase,
       reduced-motion local viewer)
    5. Hero controls
    6. Shop grid (hover-to-spin)
@@ -224,8 +224,13 @@ function renderCart() {
 }
 
 /* ---------------- 3. Loader ---------------- */
+/* Pure SVG logo animation (no Three.js, no CDN, so it can never fail on
+   a module or font load): the ROAS arrow draws itself along its
+   trajectory with a comet tip, the ROASLIFT letters rise in a staggered
+   wave, a sheen sweeps the wordmark, then the split-curtain reveal.
+   One non-looping run ending at the hold (~3.0s). */
 var loaderDone = false;
-var loaderProgress = 0; /* 0..1, raw counter progress — drives the jacket spin */
+var loaderProgress = 0; /* 0..0.88, raw cycle progress — drives the SVG phases */
 var revealCallbacks = [];
 function onReveal(fn) { revealCallbacks.push(fn); }
 
@@ -236,52 +241,190 @@ function revealSite() {
   loader.classList.add('open'); /* curtains part, content fades */
   setTimeout(function () {
     loader.style.display = 'none';
-    /* Free the loader's WebGL context now that it is hidden — disposing
-       earlier blanks the logo mid-fade (the canvas paints white once its
-       context is lost). */
-    if (loaderRenderer) {
-      try { loaderRenderer.dispose(); loaderRenderer.forceContextLoss(); } catch (e) { /* already gone */ }
-      loaderRenderer = null;
-    }
   }, 950);
   revealCallbacks.forEach(function (fn) { try { fn(); } catch (e) { /* keep going */ } });
+}
+
+/* Easing helpers for the SVG loader (ported from the reference demo). */
+function clamp01(v) { return Math.max(0, Math.min(1, v)); }
+function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+function easeInOutCubic(t) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+function easeOutBack(t) {
+  var c1 = 1.70158, c3 = c1 + 1;
+  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+}
+
+/* Cached handles for the loader SVG, built lazily on first use. */
+var svgEls = null;
+function svgLoaderEls() {
+  if (svgEls) return svgEls;
+  var maskPath = document.getElementById('maskStrokePath');
+  if (!maskPath) return null;
+  /* The mask stroke starts fully hidden; the animation reveals it. */
+  var totalLen = maskPath.getTotalLength();
+  maskPath.style.strokeDasharray = totalLen;
+  maskPath.style.strokeDashoffset = totalLen;
+  svgEls = {
+    maskPath: maskPath, totalLen: totalLen,
+    maskHeadBloom: document.getElementById('maskHeadBloom'),
+    arrowGroup: document.getElementById('arrowGroup'),
+    arrowImg: document.getElementById('arrowImg'),
+    cometTip: document.getElementById('cometTip'),
+    peakBurst: document.getElementById('peakBurst'),
+    letters: Array.prototype.slice.call(document.querySelectorAll('.letter-node')),
+    sheenGroup: document.getElementById('sheenGroup'),
+    sheenRect: document.getElementById('sheenRect'),
+    halo: document.getElementById('loaderHalo'),
+    status: document.getElementById('loaderStatus')
+  };
+  return svgEls;
+}
+
+/* One frame of the logo animation, as a pure function of cycle progress
+   p (0..0.88). Phase windows (fractions of the 3400ms reference cycle):
+   0.00-0.42 arrow draws; 0.36-0.66 letters rise; 0.62-0.80 sheen sweep;
+   0.78-0.88 clean hold. No fade-out - the curtain is the exit. */
+function renderSvgLoader(p) {
+  var el = svgLoaderEls();
+  if (!el) return;
+  var totalLen = el.totalLen;
+  var arrowT = clamp01(p / 0.42);
+
+  /* 1. Arrow: the mask stroke draws along the arrow's trajectory. */
+  var drawProgress = easeInOutCubic(arrowT);
+  el.maskPath.style.strokeDashoffset = totalLen * (1 - drawProgress);
+  /* Arrowhead mask bloom near the tip. */
+  var bloomT = clamp01((drawProgress - 0.78) / 0.22);
+  el.maskHeadBloom.setAttribute('r', (easeOutCubic(bloomT) * 76).toFixed(1));
+  /* Subtle upward lift, then a gentle buoyant float. */
+  var liftT = clamp01(p / 0.45);
+  var arrowY = (1 - easeOutCubic(liftT)) * 18;
+  if (p > 0.45 && p < 0.88) {
+    arrowY += Math.sin(((p - 0.45) / 0.43) * Math.PI * 2) * -4.5;
+  }
+  el.arrowGroup.setAttribute('transform', 'translate(0, ' + arrowY.toFixed(2) + ')');
+  /* Arrow glow intensifies as it reaches the top. */
+  if (arrowT > 0.7) { el.arrowImg.setAttribute('filter', 'url(#arrowGlow)'); }
+  else { el.arrowImg.removeAttribute('filter'); }
+  /* Comet tip rides the exact arrow path. */
+  if (arrowT > 0.02 && arrowT < 0.98) {
+    var pt = el.maskPath.getPointAtLength(totalLen * drawProgress);
+    el.cometTip.setAttribute('transform', 'translate(' + pt.x.toFixed(1) + ', ' + pt.y.toFixed(1) + ')');
+    el.cometTip.setAttribute('opacity', Math.sin(arrowT * Math.PI).toFixed(3));
+  } else {
+    el.cometTip.setAttribute('opacity', '0');
+  }
+  /* Peak burst ring right when the arrow hits the top. */
+  var burstT = clamp01((p - 0.38) / 0.18);
+  if (burstT > 0 && burstT < 1) {
+    el.peakBurst.setAttribute('r', (8 + easeOutCubic(burstT) * 70).toFixed(1));
+    el.peakBurst.setAttribute('opacity', ((1 - burstT) * 0.75).toFixed(3));
+    el.peakBurst.setAttribute('stroke-width', (5 * (1 - burstT * 0.7)).toFixed(2));
+  } else {
+    el.peakBurst.setAttribute('opacity', '0');
+  }
+  /* Ambient halo glow pulse. */
+  if (p > 0.25 && p < 0.85) { el.halo.classList.add('active'); }
+  else { el.halo.classList.remove('active'); }
+
+  /* 2. Letters: staggered wave rise with a crisp scale lock-in. */
+  var letterStartBase = 0.36, letterDur = 0.19, staggerStep = 0.024;
+  el.letters.forEach(function (node, idx) {
+    var lt = clamp01((p - (letterStartBase + idx * staggerStep)) / letterDur);
+    var e = easeOutBack(lt);
+    var ty = (1 - e) * 68;
+    var sc = 0.88 + 0.12 * easeOutCubic(lt);
+    var op = clamp01(lt * 1.8);
+    /* Anchor the scale around each letter's vertical centre (y=560). */
+    var cx = 90 + idx * 120;
+    node.setAttribute('transform',
+      'translate(0, ' + ty.toFixed(2) + ') translate(' + cx + ', 560) scale(' + sc.toFixed(4) + ') translate(' + (-cx) + ', -560)');
+    node.setAttribute('opacity', op.toFixed(3));
+  });
+
+  /* 3. Diagonal sheen sweep across the wordmark. On the light background
+     the screen blend is invisible over white and reads as a soft light
+     pass over the navy letters - kept at a lower peak opacity (0.35). */
+  var sheenT = clamp01((p - 0.62) / 0.18);
+  if (sheenT > 0 && sheenT < 1) {
+    var sx = -260 + easeInOutCubic(sheenT) * 1480;
+    el.sheenRect.setAttribute('x', sx.toFixed(1));
+    el.sheenGroup.setAttribute('opacity', (Math.sin(sheenT * Math.PI) * 0.35).toFixed(3));
+  } else {
+    el.sheenGroup.setAttribute('opacity', '0');
+  }
+
+  /* 4. Status text. */
+  if (p < 0.36) { el.status.textContent = 'Lifting ROAS...'; }
+  else if (p < 0.68) { el.status.textContent = 'Initializing ROASLift...'; }
+  else { el.status.textContent = 'Ready'; }
+}
+
+/* If any loader image fails to load (offline, bad deploy), fall back to
+   the static PNG logo - never a blank loader. The preload shares the
+   browser cache with the SVG <image> elements, so no double download. */
+var LOADER_IMG_FILES = [
+  'images/loader/arrow.png',
+  'images/loader/letter-0.png', 'images/loader/letter-1.png',
+  'images/loader/letter-2.png', 'images/loader/letter-3.png',
+  'images/loader/letter-4.png', 'images/loader/letter-5.png',
+  'images/loader/letter-6.png', 'images/loader/letter-7.png'
+];
+function watchLoaderImages() {
+  var failed = false;
+  LOADER_IMG_FILES.forEach(function (src) {
+    var img = new Image();
+    img.onerror = function () {
+      if (failed) return;
+      failed = true;
+      document.getElementById('loader').classList.add('svg-failed');
+    };
+    img.src = src;
+  });
 }
 
 function initLoader() {
   var pctEl = $('#loaderPct');
   var barEl = $('#loaderBarFill');
   /* QA hook: window.__loaderDurationScale stretches the loader (and its
-     safety) so screenshots can catch mid-spin frames in slow SwiftShader
-     — production never sets it, so it is always 1 there. */
+     safety) so screenshots can catch mid-animation frames in slow
+     SwiftShader - production never sets it, so it is always 1 there. */
   var timeScale = window.__loaderDurationScale || 1;
-  var DURATION = 2200 * timeScale; /* one full jacket turn fits inside it */
+  var CYCLE = 3400 * timeScale; /* full reference animation cycle */
+  var HOLD = 0.88; /* cycle fraction where the run ends and the curtain opens */
+  var DURATION = CYCLE * HOLD; /* ~3.0s at 1x */
   /* The counter advances by at most 250ms per frame, not by raw wall
-     time: on a slow device the Three.js module can block the main thread
-     for seconds, and a wall-clock counter would jump straight to 100
-     when the thread unblocks — revealing the site before the 3D logo
-     ever assembles. Capped per-frame steps pause the counter with the
-     block, so the assembly is always seen. On a fast device frames run
-     every ~16ms and the cap never binds. */
+     time: on a slow device the main thread can block for seconds, and a
+     wall-clock counter would jump straight to 100 when the thread
+     unblocks - skipping phases of the animation. Capped per-frame steps
+     pause the counter (and the animation, which is a pure function of
+     it) with the block, so every phase is always seen. On a fast device
+     frames run every ~16ms and the cap never binds. */
   var elapsed = 0;
   var prev = performance.now();
+  /* Paint the first frame synchronously so the arrow never flashes
+     fully drawn before the first rAF tick. */
+  renderSvgLoader(0);
+  watchLoaderImages();
   function tick(now) {
     elapsed += Math.min(now - prev, 250);
     prev = now;
     var p = clamp(elapsed / DURATION, 0, 1);
-    loaderProgress = p; /* raw (linear) progress — the jacket spins at constant speed */
+    loaderProgress = clamp(elapsed / CYCLE, 0, HOLD);
     var eased = 1 - Math.pow(1 - p, 2);
     var val = Math.round(eased * 100);
     pctEl.textContent = String(val).padStart(3, '0');
     barEl.style.width = (eased * 100) + '%';
+    /* Reduced motion: hold the finished logo still instead of animating. */
+    renderSvgLoader(reducedMotion ? HOLD : loaderProgress);
     if (p < 1 && !loaderDone) { requestAnimationFrame(tick); }
     else { revealSite(); }
   }
   requestAnimationFrame(tick);
   $('#loaderSkip').addEventListener('click', revealSite);
-  /* Hard safety: never trap the visitor behind the loader. 6s (not 3.5s)
-     so a slow device still gets its counter + assembly after a long
-     module-evaluation block; a failed load still reveals via the
-     counter itself, which does not depend on Three.js. */
+  /* Hard safety: never trap the visitor behind the loader. */
   setTimeout(revealSite, 6000 * timeScale);
 }
 
@@ -446,12 +589,11 @@ function featherDepthTexture(colorImg, depthImg) {
    plus a back face behind it. Jackets with a back photo show the REAL
    back (same relief treatment, aligned to the front silhouette); the one
    without (Cocoa Wool) keeps the navy ROASLIFT back clipped to the jacket
-   silhouette — never a rectangle. texOverride lets the loader build its
-   jacket from its own texture loads instead of the boot's globals. */
-function makeGarmentGroup(product, texOverride) {
+   silhouette — never a rectangle. */
+function makeGarmentGroup(product) {
   var group = new THREE.Group();
   var geo = new THREE.PlaneGeometry(GARMENT_W, GARMENT_H, 48, 72);
-  var tex = texOverride || textures[product.id] || {};
+  var tex = textures[product.id] || {};
   var frontMat = new THREE.MeshStandardMaterial({
     map: tex.color || null,
     displacementMap: tex.depth || null,
@@ -497,293 +639,7 @@ function setGroupOpacity(group, opacity) {
   group.userData.mats.forEach(function (m) { m.opacity = opacity; });
 }
 
-/* ---- 4a. Loader logo: extruded 3D arrow + wordmark ---- */
-/* Builds a thick zigzag band from centreline points (miter joins). */
-function thickPolylineShape(points, thickness) {
-  var half = thickness / 2;
-  function normal(p, q) {
-    var dx = q[0] - p[0], dy = q[1] - p[1];
-    var len = Math.hypot(dx, dy) || 1;
-    return [-dy / len, dx / len];
-  }
-  var left = [], right = [];
-  for (var i = 0; i < points.length; i++) {
-    var n;
-    if (i === 0) { n = normal(points[0], points[1]); }
-    else if (i === points.length - 1) { n = normal(points[i - 1], points[i]); }
-    else {
-      var n1 = normal(points[i - 1], points[i]);
-      var n2 = normal(points[i], points[i + 1]);
-      n = [n1[0] + n2[0], n1[1] + n2[1]];
-      var l = Math.hypot(n[0], n[1]) || 1;
-      n = [n[0] / l, n[1] / l];
-    }
-    left.push([points[i][0] + n[0] * half, points[i][1] + n[1] * half]);
-    right.push([points[i][0] - n[0] * half, points[i][1] - n[1] * half]);
-  }
-  var shape = new THREE.Shape();
-  shape.moveTo(left[0][0], left[0][1]);
-  for (var j = 1; j < left.length; j++) { shape.lineTo(left[j][0], left[j][1]); }
-  for (var k = right.length - 1; k >= 0; k--) { shape.lineTo(right[k][0], right[k][1]); }
-  shape.closePath();
-  return shape;
-}
-
-/* The arrow as two separate parts (shaft + head), so each can fly in on
-   its own during the assembly animation. Both parts are centred on the
-   COMBINED bounding box, so the assembled arrow sits exactly where the
-   old single-geometry arrow did. */
-function buildArrowParts() {
-  var shaft = thickPolylineShape(
-    [[0, 0.15], [2.3, 1.3], [2.95, 0.85], [3.6, 1.45], [4.5, 2.2]], 0.34);
-  var head = new THREE.Shape();
-  head.moveTo(4.34, 2.62);
-  head.lineTo(5.19, 2.78);
-  head.lineTo(4.88, 1.98);
-  head.closePath();
-  var opts = { depth: 0.35, bevelEnabled: true,
-    bevelThickness: 0.04, bevelSize: 0.04, bevelSegments: 2 };
-  var shaftGeo = new THREE.ExtrudeGeometry(shaft, opts);
-  var headGeo = new THREE.ExtrudeGeometry(head, opts);
-  shaftGeo.computeBoundingBox();
-  headGeo.computeBoundingBox();
-  var bb = shaftGeo.boundingBox.clone().union(headGeo.boundingBox);
-  var c = bb.getCenter(new THREE.Vector3());
-  shaftGeo.translate(-c.x, -c.y, -c.z);
-  headGeo.translate(-c.x, -c.y, -c.z);
-  return { shaft: shaftGeo, head: headGeo };
-}
-
-/* Assembly animation: each logo part flies in from a scattered offset and
-   locks into place with a stagger, so the logo visibly assembles instead
-   of just appearing. Delays are seconds on the loader scene's clock. */
-var assembleParts = [];
-function easeOutBack(t) {
-  var c1 = 1.70158, c3 = c1 + 1;
-  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
-}
-function addAssemblePart(mesh, fromPos, fromRotZ, delay, dur, fadeMat) {
-  assembleParts.push({
-    mesh: mesh,
-    fromPos: fromPos, toPos: mesh.position.clone(),
-    fromRotZ: fromRotZ, delay: delay, dur: dur, fadeMat: fadeMat || null
-  });
-  mesh.position.copy(fromPos);
-  mesh.rotation.z = fromRotZ;
-  if (fadeMat) { fadeMat.opacity = 0; }
-}
-
-var loaderAnimId = null;
-var loaderRenderer = null; /* freed in revealSite once the loader is hidden */
-var loaderJacket = null; /* hero garment group — built once its textures arrive */
-var loaderJacketBornAt = 0; /* loader-clock time the jacket appeared (for its scale-in) */
-var LOGO_Y = 3.3; /* logo group height: small brand mark above the jacket */
-/* The cut-out's opaque jacket fills only ~67% of its plane's height
-   (bbox y 204–1042 of 1247, measured), so the plane must be scaled 2.1x
-   for the VISIBLE jacket to stand ~56vh tall on a 900px desktop. */
-var JACKET_SCALE = 2.1;
-function initLoaderScene() {
-  if (loaderDone) return; /* loader already revealed — no scene to build */
-  var canvas = $('#loaderCanvas');
-  var renderer;
-  try { renderer = makeRenderer(canvas); }
-  catch (e) { return; } /* keep the PNG logo + jacket photo visible */
-  loaderRenderer = renderer;
-  canvas.classList.add('ready');
-  var scene = new THREE.Scene();
-  var camera = new THREE.PerspectiveCamera(40, 1, 0.1, 50);
-  camera.position.set(0, 0.5, 10.5);
-  camera.lookAt(0, 0.5, 0);
-  addLights(scene);
-
-  var group = new THREE.Group();
-  /* The logo is subordinate now — the jacket is the star — so the whole
-     assembling mark is scaled down and parked above the jacket. */
-  group.scale.setScalar(0.30);
-  group.position.y = LOGO_Y;
-  var arrowParts = buildArrowParts();
-  var arrowMat = new THREE.MeshStandardMaterial({ color: ACCENT, metalness: 0.35, roughness: 0.35 });
-  var arrowShaft = new THREE.Mesh(arrowParts.shaft, arrowMat);
-  var arrowHead = new THREE.Mesh(arrowParts.head, arrowMat);
-  arrowShaft.position.y = 1.15;
-  arrowHead.position.y = 1.15;
-  group.add(arrowShaft);
-  group.add(arrowHead);
-  if (!reducedMotion) {
-    /* Arrow assembles first: shaft slides in from the left, head drops
-       in from the top-right, both settling with a slight overshoot. */
-    addAssemblePart(arrowShaft, new THREE.Vector3(-3.4, 0.1, 0), -0.7, 0, 0.6);
-    addAssemblePart(arrowHead, new THREE.Vector3(3.2, 2.8, 0), 0.9, 0.18, 0.6);
-  }
-
-  /* Wordmark: logo PNG plane first; swapped for real 3D text if the font loads. */
-  var logoTex = new THREE.TextureLoader().load('images/logo-light-web.png');
-  logoTex.colorSpace = THREE.SRGBColorSpace;
-  var wordmark = new THREE.Mesh(
-    new THREE.PlaneGeometry(4.4, 3.09),
-    new THREE.MeshBasicMaterial({ map: logoTex, transparent: true })
-  );
-  wordmark.position.y = -1.55;
-  group.add(wordmark);
-  if (!reducedMotion) {
-    /* Wordmark slides up into place under the arrow as it assembles. */
-    addAssemblePart(wordmark, new THREE.Vector3(0, -3.4, 0), 0, 0.35, 0.55, wordmark.material);
-  }
-  scene.add(group);
-
-  var clock = new THREE.Clock();
-
-  /* Rotating hero jacket (Cognac Suede Bomber): the same depth-relief
-     garment the viewer builds, from its own texture loads — the loader
-     must never wait on the boot's full texture set, and texOverride
-     keeps the two flows independent (the boot feathers its own copies
-     later). Front + real back + both depth maps, feathered the same way
-     as the viewer so the rim never tears at 90°. */
-  (function loadLoaderJacket() {
-    var hero = PRODUCTS[HERO_INDEX];
-    var jacketTex = new THREE.TextureLoader();
-    Promise.all([
-      jacketTex.loadAsync(hero.cutout),
-      jacketTex.loadAsync(hero.depth),
-      jacketTex.loadAsync(hero.backCutout),
-      jacketTex.loadAsync(hero.backDepth)
-    ]).then(function (loaded) {
-      if (loaderDone) return; /* revealed already — no jacket to show */
-      loaded[0].colorSpace = THREE.SRGBColorSpace; loaded[0].anisotropy = 4;
-      loaded[2].colorSpace = THREE.SRGBColorSpace; loaded[2].anisotropy = 4;
-      var texSet = { color: loaded[0], depth: loaded[1],
-                     backColor: loaded[2], backDepth: loaded[3] };
-      try { texSet.depth = featherDepthTexture(loaded[0].image, loaded[1].image); }
-      catch (e) { /* keep the raw depth map */ }
-      try { texSet.backDepth = featherDepthTexture(loaded[2].image, loaded[3].image); }
-      catch (e) { /* keep the raw back depth map */ }
-      var jacket = makeGarmentGroup(hero, texSet);
-      /* JACKET_SCALE: the visible jacket stands ~56vh tall on desktop. */
-      jacket.scale.setScalar(JACKET_SCALE);
-      jacket.position.y = -0.35;
-      scene.add(jacket);
-      loaderJacket = jacket;
-      loaderJacketBornAt = clock.getElapsedTime();
-      window.__loaderJacket = jacket; /* QA hook: rotation + presence */
-      var shadow = makeContactShadow();
-      shadow.scale.set(4.2, 1.5, 1);
-      shadow.position.y = -2.95;
-      scene.add(shadow);
-    }).catch(function () { /* jacket stays out — logo-only loader */ });
-  })();
-
-  /* Try to upgrade the wordmark to extruded 3D text (non-blocking). */
-  (function load3DText() {
-    var timedOut = false;
-    var timer = setTimeout(function () { timedOut = true; }, 4000);
-    Promise.all([
-      import('three/addons/loaders/FontLoader.js'),
-      import('three/addons/geometries/TextGeometry.js')
-    ]).then(function (mods) {
-      if (timedOut) return;
-      var loader = new mods[0].FontLoader();
-      return loader.loadAsync('https://unpkg.com/three@0.160.0/examples/fonts/helvetiker_bold.typeface.json')
-        .then(function (font) {
-          if (timedOut || loaderDone) return;
-          clearTimeout(timer);
-          /* Per-letter meshes, so the wordmark assembles letter by letter
-             instead of popping in as one block. */
-          var word = 'ROASLIFT', gap = 0.08;
-          var letters = [], totalW = 0;
-          for (var i = 0; i < word.length; i++) {
-            var lg = new mods[1].TextGeometry(word[i], {
-              font: font, size: 0.82, height: 0.18,
-              curveSegments: 6, bevelEnabled: true,
-              bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 2
-            });
-            lg.center();
-            lg.computeBoundingBox();
-            var w = lg.boundingBox.max.x - lg.boundingBox.min.x;
-            letters.push({ geo: lg, w: w });
-            totalW += w;
-          }
-          totalW += gap * (word.length - 1);
-          group.remove(wordmark);
-          /* The PNG wordmark is gone — drop its assembly part too. */
-          assembleParts = assembleParts.filter(function (part) { return part.mesh !== wordmark; });
-          var textMat = new THREE.MeshStandardMaterial({
-            color: NAVY, metalness: 0.2, roughness: 0.4
-          });
-          var x = -totalW / 2;
-          var t0 = clock.getElapsedTime(); /* letters assemble from NOW —
-            the font may arrive late, so anchor the stagger to the load. */
-          letters.forEach(function (L, j) {
-            var m = new THREE.Mesh(L.geo, textMat);
-            m.position.set(x + L.w / 2, -1.55, 0);
-            x += L.w + gap;
-            group.add(m);
-            if (!reducedMotion) {
-              var side = (j % 2 === 0) ? -1 : 1;
-              addAssemblePart(m, new THREE.Vector3(
-                m.position.x + side * (1.6 + (j % 3) * 0.5),
-                m.position.y + (j % 2 === 0 ? 1.6 : -1.4), 0),
-                side * 0.7, t0 + j * 0.06, 0.5);
-            }
-          });
-        });
-    }).catch(function () { /* keep the PNG wordmark */ });
-  })();
-
-  (function animate() {
-    if (loaderDone) {
-      cancelAnimationFrame(loaderAnimId);
-      /* Last frame stays on the canvas while the loader fades out; the
-         context itself is freed in revealSite once it is hidden. */
-      return;
-    }
-    loaderAnimId = requestAnimationFrame(animate);
-    var t = clock.getElapsedTime();
-    sizeRendererToCanvas(renderer, camera);
-    /* Keep the jacket inside the frame on narrow (portrait) canvases:
-       pull the camera back until the visible width clears the jacket
-       (2.1 x 2.3 x 0.93 opaque width + margin) — 7.0/aspect. Wide
-       canvases stay at the base distance. */
-    camera.position.z = Math.max(10.5, 7.0 / Math.max(camera.aspect, 0.2));
-    if (loaderJacket) {
-      if (reducedMotion) {
-        /* No spin — a still front view. */
-        loaderJacket.rotation.y = 0;
-      } else {
-        /* One full turn across the loader, driven by the counter's raw
-           progress (not the clock) so the spin and the counter can never
-           drift apart — even on a slow device where frames stall. Starts
-           45° off-front so the first frames already read as mid-spin,
-           shows the real back at ~62% and is nearly front again at the
-           reveal. */
-        loaderJacket.rotation.y = -Math.PI / 4 + loaderProgress * Math.PI * 2;
-      }
-      /* Gentle scale-in so the jacket never pops when its textures land. */
-      var born = clamp((t - loaderJacketBornAt) / 0.3, 0, 1);
-      var ease = 1 - Math.pow(1 - born, 3);
-      loaderJacket.scale.setScalar(JACKET_SCALE * (0.92 + 0.08 * ease));
-    }
-    if (!reducedMotion) {
-      /* Drive the assembly: every part eases from its scattered offset
-         into place with a slight overshoot. */
-      assembleParts.forEach(function (part) {
-        var p = clamp((t - part.delay) / part.dur, 0, 1);
-        var e = easeOutBack(p);
-        part.mesh.position.lerpVectors(part.fromPos, part.toPos, e);
-        part.mesh.rotation.z = part.fromRotZ * (1 - e);
-        if (part.fadeMat) { part.fadeMat.opacity = p; }
-      });
-      /* Gentle sway only starts once the logo has assembled (~1.4s), so
-         it never fights the assembly motion. The bob is relative to the
-         logo's parked height — it must never overwrite it. */
-      var swayT = Math.max(0, t - 1.4);
-      group.rotation.y = Math.sin(swayT * 0.6) * 0.28;
-      group.position.y = LOGO_Y + Math.sin(swayT * 1.1) * 0.08;
-    }
-    renderer.render(scene, camera);
-  })();
-}
-
-/* ---- 4b. Showcase: one fixed stage, hero -> viewer in one sequence ---- */
+/* ---- 4a. Showcase: one fixed stage, hero -> viewer in one sequence ---- */
 var show = {
   renderer: null, scene: null, camera: null,
   groups: [], shadows: [], particles: null,
@@ -1126,7 +982,7 @@ function initShowcaseScroll() {
   } catch (e) { /* showcase stays inert; fallbacks cover it */ }
 }
 
-/* ---- 4c. Local viewer (reduced motion, or no ScrollTrigger) ---- */
+/* ---- 4b. Local viewer (reduced motion, or no ScrollTrigger) ---- */
 /* A classic in-stage drag viewer: same garment, no scroll choreography. */
 var local = { group: null, frontMat: null, backMat: null, backMesh: null,
   fade: 1, fadeTarget: 1, pendingIndex: null };
@@ -1213,7 +1069,7 @@ function swapLocalProduct(index) {
   local.fadeTarget = 0;
 }
 
-/* ---- 4d. Boot Three.js (async, guarded) ---- */
+/* ---- 4c. Boot Three.js (async, guarded) ---- */
 function initThree() {
   if (!webglAvailable()) {
     mode = 'fallback';
@@ -1233,9 +1089,6 @@ function initThree() {
   import('three').then(function (mod) {
     if (mode !== 'none') return []; /* boot timed out — stay on fallbacks */
     THREE = mod;
-    /* Start the 3D loader logo now — it needs no textures, and waiting for
-       all 10 product textures could leave the loader without it. */
-    try { initLoaderScene(); } catch (e) { /* PNG logo stays */ }
     var loader = new THREE.TextureLoader();
     var jobs = [];
     PRODUCTS.forEach(function (p) {

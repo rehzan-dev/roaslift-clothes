@@ -115,22 +115,64 @@ input, textarea { font-family: inherit; }
   transition: opacity 0.3s ease;
 }
 #loader.open .loader-inner { opacity: 0; }
-.loader-stage { position: relative; width: min(640px, 92vw); height: min(88vh, 860px); }
-#loaderCanvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-/* No-WebGL fallback: logo above a still of the hero jacket. */
+/* Faint blue grid backdrop, masked to a radial glow around the logo. */
+.loader-grid {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(79, 134, 247, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(79, 134, 247, 0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(circle at 50% 45%, black 15%, transparent 72%);
+  -webkit-mask-image: radial-gradient(circle at 50% 45%, black 15%, transparent 72%);
+}
+/* Ambient blue halo behind the logo; pulses while the logo animates. */
+.loader-halo {
+  position: absolute; top: 50%; left: 50%;
+  width: min(460px, 82vw); height: min(320px, 56vw);
+  border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, rgba(46, 84, 161, 0.22) 0%, rgba(79, 134, 247, 0.08) 45%, transparent 72%);
+  filter: blur(36px);
+  opacity: 0.45;
+  transform: translate(-50%, -50%) scale(0.88);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.loader-halo.active {
+  opacity: 0.95;
+  transform: translate(-50%, -50%) scale(1.06);
+}
+.loader-stage {
+  position: relative; z-index: 2;
+  width: min(440px, 86vw);
+  display: flex; flex-direction: column; align-items: center; gap: 20px;
+}
+.loader-box { position: relative; width: 100%; }
+.logo-svg {
+  width: 100%; height: auto; overflow: visible; display: block;
+  filter: drop-shadow(0 12px 28px rgba(10, 30, 60, 0.14));
+}
+/* The letter images are white on transparent — this filter renders them
+   navy on the light background (same recipe as the reference demo). */
+.wordmark-group {
+  filter: brightness(0) saturate(100%) invert(11%) sepia(24%) saturate(1850%) hue-rotate(188deg) brightness(95%) contrast(94%);
+}
+.loader-status {
+  font-size: 11px; font-weight: 500; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--ink-faint);
+}
+/* Fallback: static brand mark, shown only when the loader images fail
+   (#loader gets .svg-failed). Hidden otherwise. */
 .loader-fallback {
   position: absolute; inset: 0;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 2.5vh; padding: 2vh 0;
+  display: none;
+  align-items: center; justify-content: center;
 }
+#loader.svg-failed .loader-fallback { display: flex; }
+#loader.svg-failed .loader-box,
+#loader.svg-failed .loader-status,
+#loader.svg-failed .loader-halo { visibility: hidden; }
 #loaderLogoImg {
   width: min(190px, 48vw); height: auto;
 }
-#loaderJacketImg {
-  height: min(52vh, 460px); width: auto; max-width: 86vw; object-fit: cover;
-  border-radius: 18px; box-shadow: 0 24px 48px rgba(10, 30, 60, 0.18);
-}
-#loaderCanvas.ready + .loader-fallback { display: none; }
 .loader-pct {
   position: absolute; left: 1.4rem; bottom: 2.6rem;
   font-family: var(--font-head); font-weight: 800; font-size: 2.6rem; color: var(--ink);

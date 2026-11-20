@@ -26,13 +26,110 @@
   <div class="curtain curtain-left" aria-hidden="true"></div>
   <div class="curtain curtain-right" aria-hidden="true"></div>
   <div class="loader-inner">
+    <div class="loader-grid" aria-hidden="true"></div>
+    <div class="loader-halo" id="loaderHalo" aria-hidden="true"></div>
     <div class="loader-stage">
-      <canvas id="loaderCanvas" aria-hidden="true"></canvas>
-      <!-- No-WebGL fallback: brand mark + the hero jacket as a still photo.
-           Hidden the moment the 3D canvas is ready. -->
+      <!-- Pure SVG logo animation (no Three.js, no CDN): the ROAS arrow
+           draws itself along its trajectory, the ROASLIFT letters rise in
+           a staggered wave, a sheen sweeps the wordmark. Driven by
+           renderSvgLoader() in app.js. -->
+      <div class="loader-box" id="loaderBox">
+        <svg class="logo-svg" id="logoSvg" viewBox="0 0 1024 720" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ROASLift animated logo loader">
+          <defs>
+            <!-- Mask that reveals the real ROAS arrow along its trajectory -->
+            <mask id="arrowRevealMask">
+              <rect x="0" y="0" width="1024" height="720" fill="black" />
+              <path
+                id="maskStrokePath"
+                d="M 155 374 L 484 215 L 540 265 L 615 212 L 644 222 Q 730 155 836 58"
+                fill="none"
+                stroke="white"
+                stroke-width="74"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <circle id="maskHeadBloom" cx="812" cy="74" r="0" fill="white" />
+            </mask>
+            <!-- Sheen sweep gradient over the wordmark -->
+            <linearGradient id="sheenGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="white" stop-opacity="0" />
+              <stop offset="45%" stop-color="white" stop-opacity="0.55" />
+              <stop offset="55%" stop-color="#93c5fd" stop-opacity="0.7" />
+              <stop offset="100%" stop-color="white" stop-opacity="0" />
+            </linearGradient>
+            <!-- Glow filter for the comet tip riding the arrow path -->
+            <filter id="cometGlow" x="-80%" y="-80%" width="260%" height="260%">
+              <feGaussianBlur stdDeviation="10" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <!-- Clip for the letters' floor rise -->
+            <clipPath id="textFloorClip">
+              <rect x="0" y="405" width="1024" height="310" />
+            </clipPath>
+            <!-- Subtle arrow glow filter -->
+            <filter id="arrowGlow" x="-15%" y="-15%" width="130%" height="130%">
+              <feDropShadow dx="0" dy="0" stdDeviation="8" flood-color="#4f86f7" flood-opacity="0.55" />
+            </filter>
+          </defs>
+
+          <!-- Animated ROAS Arrow Group -->
+          <g id="arrowGroup" transform="translate(0, 0)">
+            <image
+              id="arrowImg"
+              href="images/loader/arrow.png"
+              x="0"
+              y="0"
+              width="1024"
+              height="720"
+              mask="url(#arrowRevealMask)"
+            />
+            <!-- Glowing comet head riding the exact arrow trajectory -->
+            <g id="cometTip" opacity="0" filter="url(#cometGlow)">
+              <circle cx="0" cy="0" r="22" fill="#4f86f7" opacity="0.5" />
+              <circle cx="0" cy="0" r="11" fill="#93c5fd" opacity="0.9" />
+              <circle cx="0" cy="0" r="5" fill="#ffffff" />
+            </g>
+            <!-- Peak burst ring when the arrow hits the top -->
+            <circle
+              id="peakBurst"
+              cx="836"
+              cy="56"
+              r="8"
+              fill="none"
+              stroke="#60a5fa"
+              stroke-width="5"
+              opacity="0"
+            />
+          </g>
+
+          <!-- ROASLIFT Wordmark Letters (white images, rendered navy by CSS) -->
+          <g id="wordmarkClipWrap" clip-path="url(#textFloorClip)">
+            <g class="wordmark-group" id="wordmarkGroup">
+              <g class="letter-node" opacity="0"><image href="images/loader/letter-0.png" x="27" y="420" width="128" height="279" /></g>
+              <g class="letter-node" opacity="0"><image href="images/loader/letter-1.png" x="169" y="419" width="136" height="281" /></g>
+              <g class="letter-node" opacity="0"><image href="images/loader/letter-2.png" x="319" y="419" width="130" height="281" /></g>
+              <g class="letter-node" opacity="0"><image href="images/loader/letter-3.png" x="461" y="419" width="124" height="281" /></g>
+              <g class="letter-node" opacity="0"><image href="images/loader/letter-4.png" x="599" y="420" width="91" height="279" /></g>
+              <g class="letter-node" opacity="0"><image href="images/loader/letter-5.png" x="706" y="420" width="55" height="280" /></g>
+              <g class="letter-node" opacity="0"><image href="images/loader/letter-6.png" x="776" y="420" width="108" height="279" /></g>
+              <g class="letter-node" opacity="0"><image href="images/loader/letter-7.png" x="891" y="420" width="110" height="280" /></g>
+            </g>
+          </g>
+
+          <!-- Diagonal sheen sweep over the wordmark -->
+          <g id="sheenGroup" opacity="0" style="mix-blend-mode: screen; pointer-events: none;">
+            <rect id="sheenRect" x="-300" y="380" width="220" height="340" fill="url(#sheenGrad)" transform="skewX(-18)" />
+          </g>
+        </svg>
+      </div>
+      <div class="loader-status"><span id="loaderStatus">Lifting ROAS...</span></div>
+      <!-- Fallback: static brand mark, shown only if the loader images
+           fail to load (loader gets .svg-failed). Never a blank loader. -->
       <div class="loader-fallback">
         <img id="loaderLogoImg" src="images/logo-light-web.png" alt="ROASLift" width="440" height="309">
-        <img id="loaderJacketImg" src="images/jacket-brown-suede-bomber-web.jpg" alt="Cognac Suede Bomber">
       </div>
     </div>
     <div class="loader-pct"><span id="loaderPct">000</span><span class="loader-pct-sign">%</span></div>
