@@ -242,6 +242,22 @@ section[id] { scroll-margin-top: 124px; } /* keep headings clear of the sticky n
   max-width: 1180px; margin: 0 auto;
   display: grid; grid-template-columns: 1.15fr 1fr; gap: 2.5rem; align-items: center;
 }
+.viewer-stage-col { display: flex; flex-direction: column; gap: 0.8rem; min-width: 0; }
+/* Extra-view thumbnails under the stage (Front / Angled / Open). Only
+   shown for jackets that have extra shots. */
+.view-thumbs { display: flex; gap: 0.6rem; justify-content: center; }
+.view-thumbs[hidden] { display: none; }
+.view-thumb {
+  display: flex; flex-direction: column; align-items: center; gap: 0.15rem;
+  width: 64px; padding: 0.4rem 0.2rem 0.35rem;
+  background: #fff; border: 1.5px solid var(--line); border-radius: 12px;
+  cursor: pointer; transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.view-thumb img { width: 34px; height: 51px; object-fit: contain; }
+.view-thumb span { font-size: 0.68rem; font-weight: 700; color: var(--ink-faint); letter-spacing: 0.04em; }
+.view-thumb.active { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(46, 90, 172, 0.15); }
+.view-thumb.active span { color: var(--accent); }
+.view-thumb:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .viewer-stage {
   position: relative; height: 620px; border-radius: 28px;
   background: radial-gradient(circle at 50% 38%, #ffffff 0%, var(--bg-tint) 78%);
@@ -267,8 +283,19 @@ section[id] { scroll-margin-top: 124px; } /* keep headings clear of the sticky n
   filter: drop-shadow(0 22px 24px rgba(10, 30, 60, 0.18));
   backface-visibility: hidden;
   will-change: transform;
+  /* Clipped to the jacket silhouette (mask = the cut-out, set in JS). */
+  -webkit-mask-size: contain; mask-size: contain;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-position: center; mask-position: center;
 }
 #viewerFallbackBack[hidden] { display: none; }
+/* Real back photo in the no-WebGL viewer: the cut-out image replaces the
+   navy panel (the ROASLIFT spans hide with it). */
+#viewerFallbackBack.has-photo {
+  background: none;
+  background-size: contain; background-repeat: no-repeat; background-position: center;
+}
+#viewerFallbackBack.has-photo span { display: none; }
 #viewerFallbackBack span:first-child {
   color: #fff; font-family: var(--font-head); font-weight: 800;
   font-size: 1.5rem; letter-spacing: 0.08em;
@@ -301,6 +328,31 @@ section[id] { scroll-margin-top: 124px; } /* keep headings clear of the sticky n
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
 #dragBadge.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+/* Always-visible drag affordance on the viewer stage: the cursor-following
+   badge only appears on hover, so at first glance nothing said "drag me".
+   This idle badge sits on the stage with a pulsing ring whenever the
+   viewer can be dragged; it steps aside while the cursor badge is showing
+   or a drag is in progress. */
+#dragBadgeIdle {
+  position: absolute; top: 1rem; right: 1rem; z-index: 2;
+  width: 60px; height: 60px; border-radius: 50%;
+  background: var(--ink); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.66rem; font-weight: 700; letter-spacing: 0.14em;
+  pointer-events: none; opacity: 0;
+  transition: opacity 0.25s ease;
+}
+#dragBadgeIdle.show { opacity: 1; }
+#dragBadgeIdle::after {
+  content: ""; position: absolute; inset: -6px; border-radius: 50%;
+  border: 2px solid var(--accent);
+  animation: dragPulse 2s ease-out infinite;
+}
+@keyframes dragPulse {
+  0% { transform: scale(0.85); opacity: 0.9; }
+  70% { transform: scale(1.25); opacity: 0; }
+  100% { transform: scale(1.25); opacity: 0; }
+}
 .drag-hint {
   position: absolute; left: 50%; bottom: 4.6rem; transform: translateX(-50%);
   margin: 0; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.18em;
@@ -358,7 +410,13 @@ section[id] { scroll-margin-top: 124px; } /* keep headings clear of the sticky n
   font-family: var(--font-head); font-size: 2.6rem; font-weight: 800; color: var(--accent);
 }
 .diagram-size span:last-child { color: var(--ink-faint); font-size: 0.85rem; }
-#sizeDiagram { width: 100%; max-width: 300px; height: auto; margin: 0.5rem auto 0; }
+#sizeDiagram {
+  width: 100%; max-width: 260px; height: auto; margin: 0.5rem auto 0.6rem;
+  /* The diagram scales with the selected size (set in JS); it grows from
+     the hem upward, with a soft overshoot. */
+  transform-origin: 50% 100%;
+  transition: transform 0.45s cubic-bezier(0.34, 1.3, 0.64, 1);
+}
 .diagram-note { color: var(--ink-faint); font-size: 0.88rem; margin: 0.8rem 0 0; }
 .size-table-card, .size-finder-card {
   background: #fff; border: 1px solid var(--line); border-radius: var(--radius);
@@ -461,6 +519,26 @@ section[id] { scroll-margin-top: 124px; } /* keep headings clear of the sticky n
   transform: rotateY(180deg); flex-direction: column; gap: 0.4rem;
   background: linear-gradient(180deg, #12305e 0%, #0a1e3c 100%);
   color: #fff; text-align: center;
+  /* Clipped to the jacket silhouette (mask = the cut-out, set in JS), so
+     the hover turn shows a navy jacket back — never a rectangle. */
+  -webkit-mask-size: contain; mask-size: contain;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-position: center; mask-position: center;
+}
+/* Real back photo on the hover turn (jackets with a back shot): no navy
+   panel, no mask — the cut-out image itself is the shape. */
+.card-face-back-img { background: none; -webkit-mask-image: none; mask-image: none; }
+.card-face-back-img img {
+  width: 86%; height: 86%; object-fit: contain;
+  filter: drop-shadow(0 18px 20px rgba(10, 30, 60, 0.16));
+}
+/* Persistent 360° hint: the spin is discoverable without hovering. */
+.card-360 {
+  position: absolute; top: 0.9rem; right: 0.9rem;
+  background: rgba(255, 255, 255, 0.94); color: var(--ink);
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em;
+  padding: 0.35rem 0.7rem; border-radius: 999px;
+  border: 1px solid var(--line);
 }
 .card-back-mark { font-family: var(--font-head); font-weight: 800; font-size: 1.5rem; letter-spacing: 0.06em; }
 .card-back-tag { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.22em; color: #bcd2f5; }
@@ -646,6 +724,8 @@ section[id] { scroll-margin-top: 124px; } /* keep headings clear of the sticky n
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .mouse-wheel { animation: none; }
+  #dragBadgeIdle::after { animation: none; }
+  #sizeDiagram { transition: none; }
   /* Loader reveal is instant instead of a curtain slide. */
   .curtain, .loader-inner { transition: none; }
 }

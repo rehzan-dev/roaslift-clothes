@@ -1,5 +1,5 @@
 /* =====================================================================
-   ROASLift Clothes — single-page 3D store (V3)
+   ROASLift Clothes — single-page 3D store (V3.1)
    Structure:
    1. Data (products, sizes)
    2. Helpers + state (cart, wishlist) + toast + smooth scroll
@@ -18,37 +18,55 @@
    ===================================================================== */
 
 /* ---------------- 1. Data ---------------- */
+/* 4-product catalog (V3.1). backCutout/backDepth = the real back photo,
+   bg-removed, aligned to the front cut-out's bbox (see align_backs.py);
+   a product WITHOUT them keeps the navy jacket-silhouette back.
+   extras = switchable front views in the viewer (view 0 is always the
+   front photo). All prices are dummy, per Rehan. */
 var PRODUCTS = [
-  { id: 'ash-wool', name: 'Ash Wool Bomber', price: 8499,
-    img: 'images/jacket-gray-wool-bomber-web.jpg',
-    cutout: 'images/cutout/jacket-gray-wool-bomber.webp',
-    depth: 'images/depth/jacket-gray-wool-bomber.png',
-    tag: 'Wool-blend · Zip-up', badge: '',
-    desc: 'A warm wool-blend bomber with a clean zip front and roomy flap pockets.' },
+  { id: 'sand-bomber', name: 'Sand Bomber', price: 7999,
+    img: 'images/jacket-sand-bomber-web.jpg',
+    cutout: 'images/cutout/jacket-sand-bomber.webp',
+    depth: 'images/depth/jacket-sand-bomber.png',
+    backCutout: 'images/cutout/jacket-sand-bomber-back.webp',
+    backDepth: 'images/depth/jacket-sand-bomber-back.png',
+    tag: 'Cream · Bomber', badge: '',
+    desc: 'A cream bomber with a clean ribbed collar and an easy, everyday fit.' },
   { id: 'cognac-suede', name: 'Cognac Suede Bomber', price: 9499,
     img: 'images/jacket-brown-suede-bomber-web.jpg',
     cutout: 'images/cutout/jacket-brown-suede-bomber.webp',
     depth: 'images/depth/jacket-brown-suede-bomber.png',
+    backCutout: 'images/cutout/jacket-brown-suede-bomber-back.webp',
+    backDepth: 'images/depth/jacket-brown-suede-bomber-back.png',
+    extras: [
+      { label: 'Angled',
+        cutout: 'images/cutout/jacket-brown-suede-bomber-angled.webp',
+        depth: 'images/depth/jacket-brown-suede-bomber-angled.png' }
+    ],
     tag: 'Soft suede · Bomber', badge: 'Hero',
     desc: 'Soft suede bomber with a clean collar and a warm, broken-in feel.' },
   { id: 'onyx', name: 'Onyx Bomber', price: 6999,
     img: 'images/jacket-black-bomber-web.jpg',
     cutout: 'images/cutout/jacket-black-bomber.webp',
     depth: 'images/depth/jacket-black-bomber.png',
+    backCutout: 'images/cutout/jacket-black-bomber-back.webp',
+    backDepth: 'images/depth/jacket-black-bomber-back.png',
+    extras: [
+      { label: 'Angled',
+        cutout: 'images/cutout/jacket-black-bomber-angled.webp',
+        depth: 'images/depth/jacket-black-bomber-angled.png' },
+      { label: 'Open',
+        cutout: 'images/cutout/jacket-black-bomber-open.webp',
+        depth: 'images/depth/jacket-black-bomber-open.png' }
+    ],
     tag: 'Matte black · Bomber', badge: '',
     desc: 'A matte black bomber that goes with everything. Clean, sharp, everyday.' },
-  { id: 'stone-work', name: 'Stone Work Jacket', price: 7499,
-    img: 'images/jacket-grey-work-web.jpg',
-    cutout: 'images/cutout/jacket-grey-work.webp',
-    depth: 'images/depth/jacket-grey-work.png',
-    tag: 'Workwear · Corduroy collar', badge: '',
-    desc: 'A sturdy stone-grey work jacket with a soft corduroy collar.' },
-  { id: 'espresso-trucker', name: 'Espresso Trucker', price: 8999,
-    img: 'images/jacket-dark-brown-trucker-web.jpg',
-    cutout: 'images/cutout/jacket-dark-brown-trucker.webp',
-    depth: 'images/depth/jacket-dark-brown-trucker.png',
-    tag: 'Trucker · Snap buttons', badge: '',
-    desc: 'A deep espresso trucker with snap buttons and classic chest pockets.' }
+  { id: 'cocoa-wool', name: 'Cocoa Wool Jacket', price: 8999,
+    img: 'images/jacket-cocoa-wool-web.jpg',
+    cutout: 'images/cutout/jacket-cocoa-wool.webp',
+    depth: 'images/depth/jacket-cocoa-wool.png',
+    tag: 'Wool · Flap pockets', badge: '',
+    desc: 'A dark brown wool jacket with flap pockets and a warm, structured feel.' }
 ];
 var HERO_INDEX = 1; /* Cognac Suede Bomber is the hero product */
 var SIZES = ['S', 'M', 'L', 'XL', 'XXL'];
@@ -231,10 +249,20 @@ function revealSite() {
 function initLoader() {
   var pctEl = $('#loaderPct');
   var barEl = $('#loaderBarFill');
-  var start = performance.now();
   var DURATION = 1900; /* fast on purpose — DUDEFOX took ~5s */
+  /* The counter advances by at most 250ms per frame, not by raw wall
+     time: on a slow device the Three.js module can block the main thread
+     for seconds, and a wall-clock counter would jump straight to 100
+     when the thread unblocks — revealing the site before the 3D logo
+     ever assembles. Capped per-frame steps pause the counter with the
+     block, so the assembly is always seen. On a fast device frames run
+     every ~16ms and the cap never binds. */
+  var elapsed = 0;
+  var prev = performance.now();
   function tick(now) {
-    var p = clamp((now - start) / DURATION, 0, 1);
+    elapsed += Math.min(now - prev, 250);
+    prev = now;
+    var p = clamp(elapsed / DURATION, 0, 1);
     var eased = 1 - Math.pow(1 - p, 2);
     var val = Math.round(eased * 100);
     pctEl.textContent = String(val).padStart(3, '0');
@@ -244,8 +272,11 @@ function initLoader() {
   }
   requestAnimationFrame(tick);
   $('#loaderSkip').addEventListener('click', revealSite);
-  /* Hard safety: never trap the visitor behind the loader. */
-  setTimeout(revealSite, 3500);
+  /* Hard safety: never trap the visitor behind the loader. 6s (not 3.5s)
+     so a slow device still gets its counter + assembly after a long
+     module-evaluation block; a failed load still reveals via the
+     counter itself, which does not depend on Three.js. */
+  setTimeout(revealSite, 6000);
 }
 
 /* ---------------- 4. Three.js ---------------- */
@@ -320,13 +351,11 @@ function makeContactShadow() {
   return mesh;
 }
 
-/* Branded back for a garment: navy gradient + ROASLIFT text. */
-var backTexture = null;
-function getBackTexture() {
-  if (backTexture) return backTexture;
-  var c = document.createElement('canvas');
-  c.width = 512; c.height = 768;
-  var g = c.getContext('2d');
+/* Branded back for a garment: navy gradient + ROASLIFT text, clipped to the
+   jacket's own silhouette (the cut-out's alpha) — the back must never read
+   as a rectangle when the garment turns. */
+var backTextures = {}; /* product id -> masked back texture */
+function drawBackDesign(g) {
   var grad = g.createLinearGradient(0, 0, 0, 768);
   grad.addColorStop(0, '#12305e');
   grad.addColorStop(1, '#0a1e3c');
@@ -349,14 +378,69 @@ function getBackTexture() {
   g.font = '600 24px Arial, sans-serif';
   g.fillStyle = '#bcd2f5';
   g.fillText('WEAR THE RISE', 256, 472);
-  backTexture = new THREE.CanvasTexture(c);
-  backTexture.colorSpace = THREE.SRGBColorSpace;
-  return backTexture;
+}
+function getBackTexture(product) {
+  var id = product ? product.id : 'plain';
+  if (backTextures[id]) return backTextures[id];
+  var c = document.createElement('canvas');
+  c.width = 512; c.height = 768;
+  var g = c.getContext('2d');
+  drawBackDesign(g);
+  /* Clip the navy design to the jacket silhouette: keep the design only
+     where the cut-out is opaque. (No cut-out image — e.g. a failed load —
+     leaves the plain rectangle, as V3 did.) */
+  var tex = product && textures[product.id];
+  var img = tex && tex.color && tex.color.image;
+  if (img && img.width) {
+    g.globalCompositeOperation = 'destination-in';
+    g.drawImage(img, 0, 0, 512, 768);
+    g.globalCompositeOperation = 'source-over';
+  }
+  var t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  backTextures[id] = t;
+  return t;
+}
+
+/* Feather a depth map to 0 near the cut-out's transparent edges. The raw
+   map drops from jacket-depth to 0 across a single vertex cell, which
+   tears the silhouette into a wavy rim at grazing angles; a blurred alpha
+   mask ramps the relief down over ~one cell, so the rim stays flat.
+   Runs at half resolution: the displacement is sampled per-vertex on a
+   48x72 grid, so half-res is more than enough, and with 10 depth maps
+   (fronts + backs + extra views) full-res loops would stall the boot. */
+function featherDepthTexture(colorImg, depthImg) {
+  var w = Math.floor(depthImg.width / 2), h = Math.floor(depthImg.height / 2);
+  var dc = document.createElement('canvas');
+  dc.width = w; dc.height = h;
+  var dg = dc.getContext('2d');
+  dg.drawImage(depthImg, 0, 0, w, h);
+  var ac = document.createElement('canvas');
+  ac.width = w; ac.height = h;
+  var ag = ac.getContext('2d');
+  try { ag.filter = 'blur(12px)'; } catch (e) { /* no blur — sharper feather */ }
+  ag.drawImage(colorImg, 0, 0, w, h);
+  try { ag.filter = 'none'; } catch (e) { /* already plain */ }
+  var d = dg.getImageData(0, 0, w, h);
+  var a = ag.getImageData(0, 0, w, h);
+  var dd = d.data, ad = a.data;
+  for (var i = 0; i < dd.length; i += 4) {
+    var t = ad[i + 3] / 255;
+    var s = t * t * (3 - 2 * t); /* smoothstep */
+    dd[i] *= s; dd[i + 1] *= s; dd[i + 2] *= s;
+  }
+  dg.putImageData(d, 0, 0);
+  var tex = new THREE.CanvasTexture(dc);
+  tex.anisotropy = 4;
+  return tex;
 }
 
 /* One garment: a subdivided plane with the bg-removed cut-out as its map
    and the depth map as vertex displacement (subtle relief, not lumps),
-   plus the flat branded back panel behind it. */
+   plus a back face behind it. Jackets with a back photo show the REAL
+   back (same relief treatment, aligned to the front silhouette); the one
+   without (Cocoa Wool) keeps the navy ROASLIFT back clipped to the jacket
+   silhouette — never a rectangle. */
 function makeGarmentGroup(product) {
   var group = new THREE.Group();
   var geo = new THREE.PlaneGeometry(GARMENT_W, GARMENT_H, 48, 72);
@@ -364,21 +448,41 @@ function makeGarmentGroup(product) {
   var frontMat = new THREE.MeshStandardMaterial({
     map: tex.color || null,
     displacementMap: tex.depth || null,
-    displacementScale: 0.085, displacementBias: -0.042,
+    displacementScale: 0.07, displacementBias: -0.042,
     roughness: 0.85, metalness: 0,
     transparent: true, alphaTest: 0.08, side: THREE.FrontSide
   });
   var front = new THREE.Mesh(geo, frontMat);
-  var back = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
-    map: getBackTexture(), roughness: 0.85,
-    transparent: true, alphaTest: 0.08, side: THREE.FrontSide
-  }));
+  var backMat, backZ;
+  if (tex.backColor) {
+    /* Real back photo. The planes sit further apart than the flat navy
+       back did: the back can only poke through the front where its depth
+       exceeds the front's by > 0.05/0.07 at the same pixel, and both maps
+       are 0 at the same silhouette edges — verified clean in QA. */
+    backMat = new THREE.MeshStandardMaterial({
+      map: tex.backColor,
+      displacementMap: tex.backDepth || null,
+      displacementScale: 0.07, displacementBias: -0.042,
+      roughness: 0.85, metalness: 0,
+      transparent: true, alphaTest: 0.08, side: THREE.FrontSide
+    });
+    backZ = -0.05;
+  } else {
+    backMat = new THREE.MeshStandardMaterial({
+      map: getBackTexture(product), roughness: 0.85,
+      transparent: true, alphaTest: 0.08, side: THREE.FrontSide
+    });
+    backZ = -0.02;
+  }
+  var back = new THREE.Mesh(geo, backMat);
   back.rotation.y = Math.PI;
-  back.position.z = -0.02;
+  back.position.z = backZ;
   group.add(front);
   group.add(back);
-  group.userData.mats = [frontMat, back.material];
+  group.userData.mats = [frontMat, backMat];
   group.userData.frontMat = frontMat;
+  group.userData.backMat = backMat;
+  group.userData.backMesh = back;
   return group;
 }
 
@@ -418,7 +522,11 @@ function thickPolylineShape(points, thickness) {
   return shape;
 }
 
-function buildArrowGeometry() {
+/* The arrow as two separate parts (shaft + head), so each can fly in on
+   its own during the assembly animation. Both parts are centred on the
+   COMBINED bounding box, so the assembled arrow sits exactly where the
+   old single-geometry arrow did. */
+function buildArrowParts() {
   var shaft = thickPolylineShape(
     [[0, 0.15], [2.3, 1.3], [2.95, 0.85], [3.6, 1.45], [4.5, 2.2]], 0.34);
   var head = new THREE.Shape();
@@ -426,10 +534,36 @@ function buildArrowGeometry() {
   head.lineTo(5.19, 2.78);
   head.lineTo(4.88, 1.98);
   head.closePath();
-  return new THREE.ExtrudeGeometry([shaft, head], {
-    depth: 0.35, bevelEnabled: true,
-    bevelThickness: 0.04, bevelSize: 0.04, bevelSegments: 2
+  var opts = { depth: 0.35, bevelEnabled: true,
+    bevelThickness: 0.04, bevelSize: 0.04, bevelSegments: 2 };
+  var shaftGeo = new THREE.ExtrudeGeometry(shaft, opts);
+  var headGeo = new THREE.ExtrudeGeometry(head, opts);
+  shaftGeo.computeBoundingBox();
+  headGeo.computeBoundingBox();
+  var bb = shaftGeo.boundingBox.clone().union(headGeo.boundingBox);
+  var c = bb.getCenter(new THREE.Vector3());
+  shaftGeo.translate(-c.x, -c.y, -c.z);
+  headGeo.translate(-c.x, -c.y, -c.z);
+  return { shaft: shaftGeo, head: headGeo };
+}
+
+/* Assembly animation: each logo part flies in from a scattered offset and
+   locks into place with a stagger, so the logo visibly assembles instead
+   of just appearing. Delays are seconds on the loader scene's clock. */
+var assembleParts = [];
+function easeOutBack(t) {
+  var c1 = 1.70158, c3 = c1 + 1;
+  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+}
+function addAssemblePart(mesh, fromPos, fromRotZ, delay, dur, fadeMat) {
+  assembleParts.push({
+    mesh: mesh,
+    fromPos: fromPos, toPos: mesh.position.clone(),
+    fromRotZ: fromRotZ, delay: delay, dur: dur, fadeMat: fadeMat || null
   });
+  mesh.position.copy(fromPos);
+  mesh.rotation.z = fromRotZ;
+  if (fadeMat) { fadeMat.opacity = 0; }
 }
 
 var loaderAnimId = null;
@@ -449,13 +583,20 @@ function initLoaderScene() {
   addLights(scene);
 
   var group = new THREE.Group();
-  var arrow = new THREE.Mesh(
-    buildArrowGeometry(),
-    new THREE.MeshStandardMaterial({ color: ACCENT, metalness: 0.35, roughness: 0.35 })
-  );
-  arrow.geometry.center();
-  arrow.position.y = 1.15;
-  group.add(arrow);
+  var arrowParts = buildArrowParts();
+  var arrowMat = new THREE.MeshStandardMaterial({ color: ACCENT, metalness: 0.35, roughness: 0.35 });
+  var arrowShaft = new THREE.Mesh(arrowParts.shaft, arrowMat);
+  var arrowHead = new THREE.Mesh(arrowParts.head, arrowMat);
+  arrowShaft.position.y = 1.15;
+  arrowHead.position.y = 1.15;
+  group.add(arrowShaft);
+  group.add(arrowHead);
+  if (!reducedMotion) {
+    /* Arrow assembles first: shaft slides in from the left, head drops
+       in from the top-right, both settling with a slight overshoot. */
+    addAssemblePart(arrowShaft, new THREE.Vector3(-3.4, 0.1, 0), -0.7, 0, 0.6);
+    addAssemblePart(arrowHead, new THREE.Vector3(3.2, 2.8, 0), 0.9, 0.18, 0.6);
+  }
 
   /* Wordmark: logo PNG plane first; swapped for real 3D text if the font loads. */
   var logoTex = new THREE.TextureLoader().load('images/logo-light-web.png');
@@ -466,7 +607,13 @@ function initLoaderScene() {
   );
   wordmark.position.y = -1.55;
   group.add(wordmark);
+  if (!reducedMotion) {
+    /* Wordmark slides up into place under the arrow as it assembles. */
+    addAssemblePart(wordmark, new THREE.Vector3(0, -3.4, 0), 0, 0.35, 0.55, wordmark.material);
+  }
   scene.add(group);
+
+  var clock = new THREE.Clock();
 
   /* Try to upgrade the wordmark to extruded 3D text (non-blocking). */
   (function load3DText() {
@@ -482,23 +629,49 @@ function initLoaderScene() {
         .then(function (font) {
           if (timedOut || loaderDone) return;
           clearTimeout(timer);
-          var geo = new mods[1].TextGeometry('ROASLIFT', {
-            font: font, size: 0.82, height: 0.18,
-            curveSegments: 6, bevelEnabled: true,
-            bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 2
-          });
-          geo.center();
-          var text = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
-            color: NAVY, metalness: 0.2, roughness: 0.4
-          }));
-          text.position.y = -1.55;
+          /* Per-letter meshes, so the wordmark assembles letter by letter
+             instead of popping in as one block. */
+          var word = 'ROASLIFT', gap = 0.08;
+          var letters = [], totalW = 0;
+          for (var i = 0; i < word.length; i++) {
+            var lg = new mods[1].TextGeometry(word[i], {
+              font: font, size: 0.82, height: 0.18,
+              curveSegments: 6, bevelEnabled: true,
+              bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 2
+            });
+            lg.center();
+            lg.computeBoundingBox();
+            var w = lg.boundingBox.max.x - lg.boundingBox.min.x;
+            letters.push({ geo: lg, w: w });
+            totalW += w;
+          }
+          totalW += gap * (word.length - 1);
           group.remove(wordmark);
-          group.add(text);
+          /* The PNG wordmark is gone — drop its assembly part too. */
+          assembleParts = assembleParts.filter(function (part) { return part.mesh !== wordmark; });
+          var textMat = new THREE.MeshStandardMaterial({
+            color: NAVY, metalness: 0.2, roughness: 0.4
+          });
+          var x = -totalW / 2;
+          var t0 = clock.getElapsedTime(); /* letters assemble from NOW —
+            the font may arrive late, so anchor the stagger to the load. */
+          letters.forEach(function (L, j) {
+            var m = new THREE.Mesh(L.geo, textMat);
+            m.position.set(x + L.w / 2, -1.55, 0);
+            x += L.w + gap;
+            group.add(m);
+            if (!reducedMotion) {
+              var side = (j % 2 === 0) ? -1 : 1;
+              addAssemblePart(m, new THREE.Vector3(
+                m.position.x + side * (1.6 + (j % 3) * 0.5),
+                m.position.y + (j % 2 === 0 ? 1.6 : -1.4), 0),
+                side * 0.7, t0 + j * 0.06, 0.5);
+            }
+          });
         });
     }).catch(function () { /* keep the PNG wordmark */ });
   })();
 
-  var clock = new THREE.Clock();
   (function animate() {
     if (loaderDone) {
       cancelAnimationFrame(loaderAnimId);
@@ -509,8 +682,22 @@ function initLoaderScene() {
     loaderAnimId = requestAnimationFrame(animate);
     var t = clock.getElapsedTime();
     sizeRendererToCanvas(renderer, camera);
-    group.rotation.y = reducedMotion ? 0 : Math.sin(t * 0.6) * 0.28;
-    group.position.y = reducedMotion ? 0 : Math.sin(t * 1.1) * 0.08;
+    if (!reducedMotion) {
+      /* Drive the assembly: every part eases from its scattered offset
+         into place with a slight overshoot. */
+      assembleParts.forEach(function (part) {
+        var p = clamp((t - part.delay) / part.dur, 0, 1);
+        var e = easeOutBack(p);
+        part.mesh.position.lerpVectors(part.fromPos, part.toPos, e);
+        part.mesh.rotation.z = part.fromRotZ * (1 - e);
+        if (part.fadeMat) { part.fadeMat.opacity = p; }
+      });
+      /* Gentle sway only starts once the logo has assembled (~1.4s), so
+         it never fights the assembly motion. */
+      var swayT = Math.max(0, t - 1.4);
+      group.rotation.y = Math.sin(swayT * 0.6) * 0.28;
+      group.position.y = Math.sin(swayT * 1.1) * 0.08;
+    }
     renderer.render(scene, camera);
   })();
 }
@@ -710,6 +897,12 @@ function initShowcase() {
       view3d.rotY = ((view3d.rotY % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
       view3d.targetRotY = view3d.rotY;
       view3d.velY = 0;
+      /* Back to the front view: the hero carousel shows front photos only. */
+      if (viewerView !== 0) {
+        viewerView = 0;
+        applyViewerView(viewerIndex, 0);
+        renderViewThumbs();
+      }
     }
 
     var deg = Math.round((((centerRot % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)) * 180 / Math.PI) % 360;
@@ -718,6 +911,7 @@ function initShowcase() {
       var dv = $('#degVal');
       if (dv) { dv.innerHTML = deg + '&deg;'; }
     }
+    updateIdleBadge(); /* docking changes whether the viewer can be dragged */
   })();
   return true;
 }
@@ -750,7 +944,7 @@ function setCanvasActive(active) {
      section never looks empty if it is still partly visible. */
   var fb = $('#viewerFallback');
   if (!active) {
-    fb.src = PRODUCTS[viewerIndex].cutout;
+    fb.src = viewCutout(PRODUCTS[viewerIndex], viewerView);
     fb.alt = PRODUCTS[viewerIndex].name;
     fb.hidden = false;
   } else {
@@ -853,7 +1047,8 @@ function initShowcaseScroll() {
 
 /* ---- 4c. Local viewer (reduced motion, or no ScrollTrigger) ---- */
 /* A classic in-stage drag viewer: same garment, no scroll choreography. */
-var local = { group: null, frontMat: null, fade: 1, fadeTarget: 1, pendingIndex: null };
+var local = { group: null, frontMat: null, backMat: null, backMesh: null,
+  fade: 1, fadeTarget: 1, pendingIndex: null };
 
 function initLocalViewer() {
   var stage = $('.viewer-stage');
@@ -872,6 +1067,8 @@ function initLocalViewer() {
   scene.add(group);
   local.group = group;
   local.frontMat = group.userData.frontMat;
+  local.backMat = group.userData.backMat;
+  local.backMesh = group.userData.backMesh;
   var shadow = makeContactShadow();
   scene.add(shadow);
 
@@ -885,16 +1082,30 @@ function initLocalViewer() {
     group.position.y = reducedMotion ? 0 : Math.sin(t * 0.9) * 0.06;
     var s = view3d.zoom;
     group.scale.set(s, s, s);
-    /* Texture-swap crossfade. */
+    /* Texture-swap crossfade (front AND back — the back used to stay on
+       the previous jacket's photo after a switch). */
     if (local.fade !== local.fadeTarget) {
       local.fade = lerp(local.fade, local.fadeTarget, 0.2);
       if (Math.abs(local.fade - local.fadeTarget) < 0.02) { local.fade = local.fadeTarget; }
       local.frontMat.opacity = local.fade;
+      if (local.backMat) { local.backMat.opacity = local.fade; }
       if (local.fade === 0 && local.pendingIndex !== null) {
         var tex = textures[PRODUCTS[local.pendingIndex].id] || {};
         local.frontMat.map = tex.color || null;
         local.frontMat.displacementMap = tex.depth || null;
         local.frontMat.needsUpdate = true;
+        if (local.backMat) {
+          if (tex.backColor) {
+            local.backMat.map = tex.backColor;
+            local.backMat.displacementMap = tex.backDepth || null;
+            if (local.backMesh) { local.backMesh.position.z = -0.05; }
+          } else {
+            local.backMat.map = getBackTexture(PRODUCTS[local.pendingIndex]);
+            local.backMat.displacementMap = null;
+            if (local.backMesh) { local.backMesh.position.z = -0.02; }
+          }
+          local.backMat.needsUpdate = true;
+        }
         local.pendingIndex = null;
         local.fadeTarget = 1;
       }
@@ -957,12 +1168,58 @@ function initThree() {
         textures[p.id] = textures[p.id] || {};
         textures[p.id].depth = tex; /* data map: keep linear, no sRGB */
       }).catch(function () { /* no relief for this jacket */ }));
+      if (p.backCutout) {
+        jobs.push(loader.loadAsync(p.backCutout).then(function (tex) {
+          tex.colorSpace = THREE.SRGBColorSpace;
+          tex.anisotropy = 4;
+          textures[p.id] = textures[p.id] || {};
+          textures[p.id].backColor = tex;
+        }).catch(function () { /* falls back to the navy silhouette back */ }));
+        jobs.push(loader.loadAsync(p.backDepth).then(function (tex) {
+          textures[p.id] = textures[p.id] || {};
+          textures[p.id].backDepth = tex;
+        }).catch(function () { /* flat back */ }));
+      }
+      (p.extras || []).forEach(function (ex, ei) {
+        jobs.push(loader.loadAsync(ex.cutout).then(function (tex) {
+          tex.colorSpace = THREE.SRGBColorSpace;
+          tex.anisotropy = 4;
+          textures[p.id] = textures[p.id] || {};
+          textures[p.id]['extraColor' + ei] = tex;
+        }).catch(function () { /* that view stays on the front photo */ }));
+        jobs.push(loader.loadAsync(ex.depth).then(function (tex) {
+          textures[p.id] = textures[p.id] || {};
+          textures[p.id]['extraDepth' + ei] = tex;
+        }).catch(function () { /* flat extra view */ }));
+      });
     });
     return Promise.all(jobs);
   }).then(function () {
     clearTimeout(bootTimer);
     if (!THREE || mode !== 'none') return;
     threeReady = true;
+    /* Feather every depth map to its cut-out's alpha edges (see
+       featherDepthTexture) before any garment is built from it — fronts,
+       backs and extra views alike, so no rim ever tears at 90°. */
+    PRODUCTS.forEach(function (p) {
+      var t = textures[p.id];
+      if (t && t.color && t.color.image && t.depth && t.depth.image) {
+        try { t.depth = featherDepthTexture(t.color.image, t.depth.image); }
+        catch (e) { /* keep the raw depth map */ }
+      }
+      if (t && t.backColor && t.backColor.image && t.backDepth && t.backDepth.image) {
+        try { t.backDepth = featherDepthTexture(t.backColor.image, t.backDepth.image); }
+        catch (e) { /* keep the raw back depth map */ }
+      }
+      (p.extras || []).forEach(function (ex, ei) {
+        var c = t && t['extraColor' + ei];
+        var d = t && t['extraDepth' + ei];
+        if (c && c.image && d && d.image) {
+          try { t['extraDepth' + ei] = featherDepthTexture(c.image, d.image); }
+          catch (e) { /* keep the raw extra depth map */ }
+        }
+      });
+    });
     var canShowcase = !reducedMotion &&
       typeof window.gsap !== 'undefined' &&
       typeof window.ScrollTrigger !== 'undefined';
@@ -1004,6 +1261,24 @@ function showViewerFallback() {
   fb.alt = PRODUCTS[viewerIndex].name;
   fb.hidden = false;
   $('#viewerFallbackBack').hidden = false;
+  setFallbackBackImage(PRODUCTS[viewerIndex]);
+}
+/* Back face for the no-WebGL viewer: the real back photo where one
+   exists, else the navy panel clipped to the jacket silhouette. */
+function setFallbackBackImage(product) {
+  var back = $('#viewerFallbackBack');
+  if (product.backCutout) {
+    back.classList.add('has-photo');
+    back.style.backgroundImage = 'url("' + product.backCutout + '")';
+    back.style.webkitMaskImage = 'none';
+    back.style.maskImage = 'none';
+  } else {
+    back.classList.remove('has-photo');
+    back.style.backgroundImage = '';
+    var url = 'url("' + product.cutout + '")';
+    back.style.webkitMaskImage = url;
+    back.style.maskImage = url;
+  }
 }
 function setHeroFallbackImage(index) {
   var fb = $('#heroFallback');
@@ -1076,18 +1351,33 @@ function initGrid() {
     card.setAttribute('tabindex', '0');
     card.setAttribute('role', 'button');
     card.setAttribute('aria-label', 'View ' + p.name + ' in 3D');
+    /* Back face: the real back photo where one exists, else the navy
+       ROASLIFT panel clipped to the jacket silhouette. */
+    var backInner = p.backCutout
+      ? '<img src="' + p.backCutout + '" alt="' + p.name + ' — back view" loading="lazy">'
+      : '<span class="card-back-mark">ROASLIFT</span><span class="card-back-tag">WEAR THE RISE</span>';
     card.innerHTML =
       '<div class="card-img">' +
       '<div class="card-spin">' +
       '<div class="card-face card-face-front"><img src="' + p.cutout + '" alt="' + p.name + '" loading="lazy"></div>' +
-      '<div class="card-face card-face-back"><span class="card-back-mark">ROASLIFT</span><span class="card-back-tag">WEAR THE RISE</span></div>' +
+      '<div class="card-face card-face-back' + (p.backCutout ? ' card-face-back-img' : '') + '">' + backInner + '</div>' +
       '</div>' +
       (p.badge ? '<span class="card-badge">' + p.badge + '</span>' : '') +
+      '<span class="card-360">360&deg;</span>' +
       '<span class="card-turn">0&deg;</span></div>' +
       '<div class="card-body"><h3>' + p.name + '</h3>' +
       '<p class="card-tag">' + p.tag + '</p>' +
       '<div class="card-foot"><span class="card-price">' + formatPrice(p.price) + '</span>' +
       '<button class="card-add" type="button" aria-label="Add ' + p.name + ' to bag">Add +</button></div></div>';
+    /* The navy back face is clipped to this jacket's silhouette (mask =
+       the cut-out), so the hover turn shows a navy jacket back, not a
+       card. Real-back cards need no mask — the cut-out is the shape. */
+    if (!p.backCutout) {
+      var backFace = card.querySelector('.card-face-back');
+      var maskUrl = 'url("' + p.cutout + '")';
+      backFace.style.webkitMaskImage = maskUrl;
+      backFace.style.maskImage = maskUrl;
+    }
     function openInViewer() {
       setViewerProduct(i);
       scrollToEl(document.getElementById('viewer'));
@@ -1129,6 +1419,85 @@ function initGrid() {
 }
 
 /* ---------------- 7. Viewer panel + drag controls ---------------- */
+/* Extra views: view 0 is the front photo; views 1..n are the product's
+   extra shots (angled / open). The view only ever swaps the FRONT face —
+   the back face stays the real back (or the navy silhouette fallback) —
+   and it always resets to the front when the product changes or the
+   jacket undocks, so the hero carousel never shows an angled shot. */
+var viewerView = 0;
+
+function viewTextures(product, v) {
+  var t = textures[product.id] || {};
+  if (v === 0) return { color: t.color, depth: t.depth };
+  return { color: t['extraColor' + (v - 1)], depth: t['extraDepth' + (v - 1)] };
+}
+function viewCutout(product, v) {
+  if (v === 0) return product.cutout;
+  var ex = (product.extras || [])[v - 1];
+  return ex ? ex.cutout : product.cutout;
+}
+
+/* Swap the front face of one product's garment to a view. Showcase mode
+   keeps one group per product; local mode has a single group for the
+   current product; fallback mode is a plain <img>. */
+function applyViewerView(index, v) {
+  var p = PRODUCTS[index];
+  var vt = viewTextures(p, v);
+  if (mode === 'showcase' && show.groups[index]) {
+    var fm = show.groups[index].userData.frontMat;
+    if (fm && vt.color) {
+      fm.map = vt.color;
+      fm.displacementMap = vt.depth || null;
+      fm.needsUpdate = true;
+    }
+  } else if (mode === 'local' && local.frontMat && index === viewerIndex) {
+    if (vt.color) {
+      local.frontMat.map = vt.color;
+      local.frontMat.displacementMap = vt.depth || null;
+      local.frontMat.needsUpdate = true;
+    }
+  }
+  var fb = $('#viewerFallback');
+  if (fb && !fb.hidden) { fb.src = viewCutout(p, v); }
+}
+
+function renderViewThumbs() {
+  var wrap = $('#viewThumbs');
+  if (!wrap) return;
+  var p = PRODUCTS[viewerIndex];
+  var extras = p.extras || [];
+  wrap.innerHTML = '';
+  if (!extras.length) { wrap.hidden = true; return; }
+  wrap.hidden = false;
+  var views = [{ label: 'Front', cutout: p.cutout }].concat(extras);
+  views.forEach(function (vw, i) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'view-thumb' + (i === viewerView ? ' active' : '');
+    b.setAttribute('aria-pressed', i === viewerView ? 'true' : 'false');
+    b.setAttribute('aria-label', 'View ' + vw.label.toLowerCase());
+    var img = document.createElement('img');
+    img.src = vw.cutout;
+    img.alt = '';
+    b.appendChild(img);
+    var sp = document.createElement('span');
+    sp.textContent = vw.label;
+    b.appendChild(sp);
+    b.addEventListener('click', function () { setViewerView(i); });
+    wrap.appendChild(b);
+  });
+}
+
+function setViewerView(v) {
+  var p = PRODUCTS[viewerIndex];
+  v = clamp(v, 0, (p.extras || []).length);
+  if (v === viewerView) return;
+  viewerView = v;
+  applyViewerView(viewerIndex, v);
+  renderViewThumbs();
+  view3d.lastInteract = Date.now();
+}
+
 /* Set when a product switch starts a reset-to-front tween: the showcase
    loop's undock normalisation can overwrite targetRotY mid-tween when the
    jacket undocks on the way back, so the reset is re-asserted on re-dock. */
@@ -1138,6 +1507,7 @@ function setViewerProduct(index) {
   index = clamp(index, 0, PRODUCTS.length - 1);
   var changed = index !== viewerIndex;
   var fb;
+  var oldIndex = viewerIndex;
   viewerIndex = index;
   var p = PRODUCTS[index];
   $('#viewerEyebrow').textContent = 'Drop 01 · ' + p.tag.split('·')[0].trim();
@@ -1146,19 +1516,27 @@ function setViewerProduct(index) {
   $('#viewerDesc').textContent = p.desc;
   updateWishlistBtn();
   if (changed) {
-    /* A new jacket docks facing front, at default zoom. (No reset when the
-       same jacket re-docks — its angle is kept across undock/re-dock.) */
+    /* A new jacket docks facing front, at default zoom, on its front
+       view. (No reset when the same jacket re-docks — its angle is kept
+       across undock/re-dock.) The outgoing jacket's front face goes back
+       to its front photo too, so the hero carousel never shows an extra
+       view. */
     view3d.targetRotY = Math.round(view3d.rotY / (Math.PI * 2)) * Math.PI * 2;
     view3d.velY = 0;
     view3d.zoomTarget = 1;
     view3d.lastInteract = Date.now();
     viewerResetPending = true;
+    if (viewerView !== 0) {
+      viewerView = 0;
+      applyViewerView(oldIndex, 0);
+    }
   } else if (viewerResetPending && mode === 'showcase') {
     /* Re-dock after a switch whose reset was interrupted mid-tween: finish it. */
     view3d.targetRotY = Math.round(view3d.rotY / (Math.PI * 2)) * Math.PI * 2;
     view3d.velY = 0;
     viewerResetPending = false;
   }
+  renderViewThumbs();
   if (mode === 'showcase') {
     /* Re-centre the arc on this jacket — it is the one that docks. */
     show.hero.target = index;
@@ -1166,7 +1544,7 @@ function setViewerProduct(index) {
     /* Canvas off-screen: the <img> stand-in shows the new jacket too. */
     if (!show.active) {
       fb = $('#viewerFallback');
-      fb.src = p.cutout;
+      fb.src = viewCutout(p, viewerView);
       fb.alt = p.name;
     }
   } else if (mode === 'local') {
@@ -1175,6 +1553,7 @@ function setViewerProduct(index) {
     fb = $('#viewerFallback');
     fb.src = p.cutout;
     fb.alt = p.name;
+    setFallbackBackImage(p);
     if (changed) { kickFallback(); }
   }
 }
@@ -1246,6 +1625,23 @@ function rotateViewerBy(delta) {
   if (mode === 'fallback') { kickFallback(); }
 }
 
+/* Persistent drag affordance: the cursor-following DRAG badge only appears
+   on hover, so at first glance nothing said "drag me". The idle badge sits
+   on the stage whenever the viewer can be dragged and the cursor badge is
+   not already showing. Called from the pointer handlers and the showcase
+   loop (docking changes draggability); the cached state keeps it cheap. */
+var idleBadgeEl = null, cursorBadgeEl = null, idleBadgeShown = null;
+function updateIdleBadge() {
+  if (!idleBadgeEl) { idleBadgeEl = $('#dragBadgeIdle'); }
+  if (!cursorBadgeEl) { cursorBadgeEl = $('#dragBadge'); }
+  if (!idleBadgeEl || !cursorBadgeEl) return;
+  var showIt = viewerCanDrag() && !view3d.dragging &&
+    !cursorBadgeEl.classList.contains('show');
+  if (showIt === idleBadgeShown) return;
+  idleBadgeShown = showIt;
+  idleBadgeEl.classList.toggle('show', showIt);
+}
+
 /* No-WebGL fallback has no render loop, so inertia, arrow tweens and zoom
    need their own rAF loop — started on demand, stops when settled. */
 var fallbackRaf = null;
@@ -1297,6 +1693,7 @@ function initViewerControls() {
     view3d.lastInteract = Date.now();
     stage.classList.add('dragging');
     layer.setPointerCapture(e.pointerId);
+    updateIdleBadge();
   });
   layer.addEventListener('pointermove', function (e) {
     if (finePointer && viewerCanDrag()) {
@@ -1306,6 +1703,7 @@ function initViewerControls() {
     } else {
       badge.classList.remove('show');
     }
+    updateIdleBadge();
     if (!view3d.dragging) return;
     var dx = e.clientX - view3d.lastX;
     view3d.lastX = e.clientX;
@@ -1319,6 +1717,7 @@ function initViewerControls() {
     view3d.dragging = false;
     stage.classList.remove('dragging');
     view3d.lastInteract = Date.now();
+    updateIdleBadge();
     kickFallback(); /* inertia + zoom settle in the no-WebGL viewer */
   }
   layer.addEventListener('pointerup', endDrag);
@@ -1326,12 +1725,15 @@ function initViewerControls() {
   layer.addEventListener('lostpointercapture', endDrag);
   layer.addEventListener('pointerleave', function () {
     badge.classList.remove('show');
+    updateIdleBadge();
   });
   /* Scrolling can move the stage away (or undock the jacket) without the
      pointer leaving the layer — never leave the badge behind. */
   window.addEventListener('scroll', function () {
     badge.classList.remove('show');
+    updateIdleBadge();
   }, { passive: true });
+  updateIdleBadge(); /* local/fallback viewers are draggable from the start */
 
   $('#viewerPrev').addEventListener('click', function () { rotateViewerBy(-Math.PI / 2); });
   $('#viewerNext').addEventListener('click', function () { rotateViewerBy(Math.PI / 2); });
@@ -1395,6 +1797,10 @@ function setDiagramSize(size) {
   $('#diagramSizeLetter').textContent = size;
   $('#diagChest').textContent = 'Chest ' + cmToUnit(row.chest);
   $('#diagLength').textContent = 'Length ' + cmToUnit(row.length);
+  /* The diagram itself grows/shrinks with the size (S smallest -> XXL
+     largest), proportional to chest — not just the numbers. */
+  var scale = 0.88 + (row.chest - 112) / 24 * 0.20;
+  $('#sizeDiagram').style.transform = 'scale(' + scale.toFixed(3) + ')';
   $all('#sizeTableBody tr').forEach(function (tr) {
     tr.classList.toggle('highlight', tr.getAttribute('data-size') === size);
   });

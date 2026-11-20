@@ -105,10 +105,12 @@
       <p class="section-sub">Drag the jacket to spin it in real 3D. Every angle, before you buy.</p>
     </div>
     <div class="viewer-grid">
+      <div class="viewer-stage-col">
       <div class="viewer-stage reveal">
         <img id="viewerFallback" src="images/cutout/jacket-brown-suede-bomber.webp" alt="Cognac Suede Bomber" hidden>
         <div id="viewerFallbackBack" aria-hidden="true" hidden><span>ROASLIFT</span><span>WEAR THE RISE</span></div>
         <div id="dragLayer" aria-hidden="true"></div>
+        <div id="dragBadgeIdle" aria-hidden="true">DRAG</div>
         <p class="drag-hint" aria-hidden="true">Drag to turn &middot; <span id="degVal">0&deg;</span></p>
         <button id="viewerPrev" class="ctrl-btn viewer-arrow viewer-arrow-left" type="button" aria-label="Rotate jacket left 90 degrees">&lsaquo;</button>
         <button id="viewerNext" class="ctrl-btn viewer-arrow viewer-arrow-right" type="button" aria-label="Rotate jacket right 90 degrees">&rsaquo;</button>
@@ -117,6 +119,10 @@
           <button id="zoomReset" class="ctrl-btn zoom-reset" type="button" aria-label="Reset view">Reset</button>
           <button id="zoomIn" class="ctrl-btn" type="button" aria-label="Zoom in">+</button>
         </div>
+      </div>
+      <!-- Extra views (angled / open) for jackets that have them; built by
+           renderViewThumbs(). Hidden for jackets with a front view only. -->
+      <div id="viewThumbs" class="view-thumbs" role="group" aria-label="Extra views" hidden></div>
       </div>
       <div class="viewer-panel reveal">
         <p class="eyebrow" id="viewerEyebrow">Drop 01 &middot; Bomber</p>
@@ -239,8 +245,8 @@
           <figcaption><strong>Clean closures</strong><span>Full-length zips that glide, collars that hold their shape.</span></figcaption>
         </figure>
         <figure class="detail-card reveal">
-          <img src="images/detail-2.jpg" alt="Close-up of trucker chest pockets and snap buttons" loading="lazy">
-          <figcaption><strong>Honest hardware</strong><span>Snap buttons and stitched pockets, built to last.</span></figcaption>
+          <img src="images/detail-2.jpg" alt="Close-up of the black bomber zip and satin lining" loading="lazy">
+          <figcaption><strong>Smooth lining</strong><span>Full-length zips that glide, with a satin lining inside.</span></figcaption>
         </figure>
       </div>
       <div class="rise-cards">
@@ -250,7 +256,7 @@
         </article>
         <article class="rise-card reveal">
           <h3>The Fabric</h3>
-          <p>Wool blends, soft suede, and sturdy workwear cloth &mdash; chosen to feel broken-in from the first wear.</p>
+          <p>Wool blends, soft suede, and matte bomber cloth &mdash; chosen to feel broken-in from the first wear.</p>
         </article>
         <article class="rise-card reveal">
           <h3>The Fit</h3>
@@ -270,7 +276,7 @@
   <section id="shop" aria-label="Drop 01 products">
     <div class="section-head reveal">
       <p class="eyebrow">Drop 01</p>
-      <h2>Five pieces. <span class="accent">Nothing else.</span></h2>
+      <h2>Four pieces. <span class="accent">Nothing else.</span></h2>
       <p class="section-sub">Hover a piece to spin it. Click to open it in the 3D viewer.</p>
     </div>
     <div id="productGrid" class="product-grid"></div>
