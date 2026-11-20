@@ -13,7 +13,7 @@
 <script type="importmap">
 {
   "imports": {
-    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.min.js",
     "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
   }
 }
@@ -23,14 +23,23 @@
 
 <!-- ============ LOADER ============ -->
 <div id="loader" role="status" aria-label="Loading ROASLift">
-  <div class="loader-stage">
-    <canvas id="loaderCanvas" aria-hidden="true"></canvas>
-    <img id="loaderLogoImg" src="images/logo-light-web.png" alt="ROASLift" width="440" height="309">
+  <div class="curtain curtain-left" aria-hidden="true"></div>
+  <div class="curtain curtain-right" aria-hidden="true"></div>
+  <div class="loader-inner">
+    <div class="loader-stage">
+      <canvas id="loaderCanvas" aria-hidden="true"></canvas>
+      <img id="loaderLogoImg" src="images/logo-light-web.png" alt="ROASLift" width="440" height="309">
+    </div>
+    <div class="loader-pct"><span id="loaderPct">000</span><span class="loader-pct-sign">%</span></div>
+    <div class="loader-bar"><span id="loaderBarFill"></span></div>
+    <button id="loaderSkip" class="loader-skip" type="button">Skip &rarr;</button>
   </div>
-  <div class="loader-pct"><span id="loaderPct">000</span><span class="loader-pct-sign">%</span></div>
-  <div class="loader-bar"><span id="loaderBarFill"></span></div>
-  <button id="loaderSkip" class="loader-skip" type="button">Skip &rarr;</button>
 </div>
+
+<!-- One WebGL stage for the whole hero-to-viewer sequence. It floats fixed
+     over the page while the showcase is on screen; the DOM sections below
+     are its scroll track. -->
+<canvas id="stageCanvas" aria-hidden="true"></canvas>
 
 <!-- ============ NAV ============ -->
 <header id="nav">
@@ -62,8 +71,7 @@
   <section id="hero" aria-label="Drop 01 hero">
     <div id="heroPin">
       <div class="hero-watermark" aria-hidden="true">ROASLIFT</div>
-      <canvas id="heroCanvas" aria-hidden="true"></canvas>
-      <img id="heroFallback" src="images/jacket-brown-suede-bomber-web.jpg" alt="Cognac Suede Bomber" hidden>
+      <img id="heroFallback" src="images/cutout/jacket-brown-suede-bomber.webp" alt="Cognac Suede Bomber" hidden>
       <div class="hero-copy">
         <p class="eyebrow">New drop &middot; Drop 01</p>
         <h1 id="heroTitle">Wear the Rise.</h1>
@@ -88,6 +96,9 @@
 
   <!-- ============ PRODUCT VIEWER ============ -->
   <section id="viewer" aria-label="3D product viewer">
+    <!-- Outside .viewer-stage on purpose: the stage gets a GSAP transform,
+         which would trap this position:fixed badge underneath the canvas. -->
+    <div id="dragBadge" aria-hidden="true">DRAG</div>
     <div class="section-head reveal">
       <p class="eyebrow">3D Viewer</p>
       <h2>Turn it. Zoom it. <span class="accent">Own it.</span></h2>
@@ -95,9 +106,12 @@
     </div>
     <div class="viewer-grid">
       <div class="viewer-stage reveal">
-        <canvas id="viewerCanvas" aria-hidden="true"></canvas>
-        <img id="viewerFallback" src="images/jacket-brown-suede-bomber-web.jpg" alt="Cognac Suede Bomber" hidden>
-        <p class="drag-hint" aria-hidden="true">&larr; Drag to spin &rarr;</p>
+        <img id="viewerFallback" src="images/cutout/jacket-brown-suede-bomber.webp" alt="Cognac Suede Bomber" hidden>
+        <div id="viewerFallbackBack" aria-hidden="true" hidden><span>ROASLIFT</span><span>WEAR THE RISE</span></div>
+        <div id="dragLayer" aria-hidden="true"></div>
+        <p class="drag-hint" aria-hidden="true">Drag to turn &middot; <span id="degVal">0&deg;</span></p>
+        <button id="viewerPrev" class="ctrl-btn viewer-arrow viewer-arrow-left" type="button" aria-label="Rotate jacket left 90 degrees">&lsaquo;</button>
+        <button id="viewerNext" class="ctrl-btn viewer-arrow viewer-arrow-right" type="button" aria-label="Rotate jacket right 90 degrees">&rsaquo;</button>
         <div class="zoom-controls">
           <button id="zoomOut" class="ctrl-btn" type="button" aria-label="Zoom out">&minus;</button>
           <button id="zoomReset" class="ctrl-btn zoom-reset" type="button" aria-label="Reset view">Reset</button>
@@ -141,6 +155,30 @@
       <p class="section-sub">Measure once, order right. Our jackets follow a regular fit.</p>
     </div>
     <div class="size-grid">
+      <div class="size-diagram-card reveal">
+        <div class="diagram-size"><span id="diagramSizeLetter">M</span><span>selected size</span></div>
+        <svg id="sizeDiagram" viewBox="0 0 300 340" role="img" aria-label="Jacket measurement diagram">
+          <defs>
+            <marker id="arr" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto-start-reverse">
+              <path d="M0 0 L8 4 L0 8 z" fill="#2e5aac"></path>
+            </marker>
+          </defs>
+          <!-- bomber silhouette -->
+          <path d="M105 42 L128 30 Q150 22 172 30 L195 42 L232 66 Q246 76 240 96 L222 190 Q220 202 208 202 L204 202 L204 282 Q204 296 190 296 L110 296 Q96 296 96 282 L96 202 L92 202 Q80 202 78 190 L60 96 Q54 76 68 66 Z"
+            fill="#eaf2ff" stroke="#0a1e3c" stroke-width="2.5" stroke-linejoin="round"></path>
+          <path d="M128 30 Q150 22 172 30 L168 52 Q150 44 132 52 Z" fill="#dce8ff" stroke="#0a1e3c" stroke-width="2" stroke-linejoin="round"></path>
+          <line x1="150" y1="48" x2="150" y2="296" stroke="#0a1e3c" stroke-width="2"></line>
+          <line x1="96" y1="202" x2="204" y2="202" stroke="#0a1e3c" stroke-width="1.5" stroke-dasharray="4 4"></line>
+          <line x1="104" y1="282" x2="196" y2="282" stroke="#0a1e3c" stroke-width="1.5" stroke-dasharray="4 4"></line>
+          <!-- chest dimension -->
+          <line id="diagChestLine" x1="92" y1="140" x2="208" y2="140" stroke="#2e5aac" stroke-width="2" marker-start="url(#arr)" marker-end="url(#arr)"></line>
+          <text id="diagChest" x="150" y="128" text-anchor="middle" font-size="15" font-weight="700" fill="#2e5aac">Chest 118 cm</text>
+          <!-- length dimension -->
+          <line id="diagLengthLine" x1="262" y1="42" x2="262" y2="296" stroke="#2e5aac" stroke-width="2" marker-start="url(#arr)" marker-end="url(#arr)"></line>
+          <text id="diagLength" x="280" y="175" text-anchor="middle" font-size="15" font-weight="700" fill="#2e5aac" transform="rotate(90 280 175)">Length 68 cm</text>
+        </svg>
+        <p class="diagram-note">Hover, tap, or Tab to a row and press Enter to see its measurements.</p>
+      </div>
       <div class="size-table-card reveal">
         <div class="unit-toggle" role="group" aria-label="Measurement unit">
           <button id="unitCm" class="unit-btn active" type="button">cm</button>
@@ -192,6 +230,19 @@
         <path d="M90 6 L108 6 L108 24" fill="none" stroke="#2E5AAC" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       <p class="rise-statement reveal">ROASLift is built on a simple idea: what you wear should lift you. Clean cuts, honest fabric, and fits made for real days &mdash; from a morning commute to a late night out. No noise. Just the rise.</p>
+      <svg class="rise-thread" viewBox="0 0 1080 24" aria-hidden="true">
+        <path d="M0 12 Q27 2 54 12 T108 12 T162 12 T216 12 T270 12 T324 12 T378 12 T432 12 T486 12 T540 12 T594 12 T648 12 T702 12 T756 12 T810 12 T864 12 T918 12 T972 12 T1026 12 T1080 12" fill="none" stroke="#2e5aac" stroke-width="2" stroke-dasharray="6 8" stroke-linecap="round"/>
+      </svg>
+      <div class="rise-details">
+        <figure class="detail-card reveal">
+          <img src="images/detail-1.jpg" alt="Close-up of the suede bomber collar and zip" loading="lazy">
+          <figcaption><strong>Clean closures</strong><span>Full-length zips that glide, collars that hold their shape.</span></figcaption>
+        </figure>
+        <figure class="detail-card reveal">
+          <img src="images/detail-2.jpg" alt="Close-up of trucker chest pockets and snap buttons" loading="lazy">
+          <figcaption><strong>Honest hardware</strong><span>Snap buttons and stitched pockets, built to last.</span></figcaption>
+        </figure>
+      </div>
       <div class="rise-cards">
         <article class="rise-card reveal">
           <h3>The Cut</h3>
@@ -207,10 +258,10 @@
         </article>
       </div>
       <div class="rise-stats reveal">
-        <div><strong>05</strong><span>Pieces in Drop 01</span></div>
-        <div><strong>05</strong><span>Sizes, S to XXL</span></div>
-        <div><strong>24&ndash;72h</strong><span>Delivery across Pakistan</span></div>
-        <div><strong>7 days</strong><span>Easy size swaps</span></div>
+        <div><strong>Heavyweight</strong><span>Warm, substantial builds</span></div>
+        <div><strong>Full-zip</strong><span>Clean front closures</span></div>
+        <div><strong>Ribbed cuffs</strong><span>Snug hem &amp; cuffs</span></div>
+        <div><strong>Regular fit</strong><span>Room to move, S&ndash;XXL</span></div>
       </div>
     </div>
   </section>
@@ -220,7 +271,7 @@
     <div class="section-head reveal">
       <p class="eyebrow">Drop 01</p>
       <h2>Five pieces. <span class="accent">Nothing else.</span></h2>
-      <p class="section-sub">Hover a piece to tilt it. Click to open it in the 3D viewer.</p>
+      <p class="section-sub">Hover a piece to spin it. Click to open it in the 3D viewer.</p>
     </div>
     <div id="productGrid" class="product-grid"></div>
   </section>
@@ -367,6 +418,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script src="https://unpkg.com/lenis@1.1.14/dist/lenis.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
