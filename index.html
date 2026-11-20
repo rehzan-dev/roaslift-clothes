@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ROASLift Clothes — Wear the Rise.</title>
+<meta name="description" content="ROASLift Clothes — premium jackets, built to lift your everyday. Drop 01 is live.">
+<link rel="icon" href="images/logo-light-web.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+
+<!-- ============ LOADER ============ -->
+<div id="loader" role="status" aria-label="Loading ROASLift">
+  <div class="loader-stage">
+    <canvas id="loaderCanvas" aria-hidden="true"></canvas>
+    <img id="loaderLogoImg" src="images/logo-light-web.png" alt="ROASLift" width="440" height="309">
+  </div>
+  <div class="loader-pct"><span id="loaderPct">000</span><span class="loader-pct-sign">%</span></div>
+  <div class="loader-bar"><span id="loaderBarFill"></span></div>
+  <button id="loaderSkip" class="loader-skip" type="button">Skip &rarr;</button>
+</div>
+
+<!-- ============ NAV ============ -->
+<header id="nav">
+  <div class="nav-inner">
+    <a class="nav-logo" href="#hero" aria-label="ROASLift home">
+      <img src="images/logo-light-web.png" alt="ROASLift" width="150" height="105">
+    </a>
+    <nav class="nav-links" id="navLinks" aria-label="Main">
+      <a href="#hero">Home</a>
+      <a href="#shop">Shop</a>
+      <a href="#rise">The Rise</a>
+      <a href="#reviews">Reviews</a>
+      <a href="#size">Size Guide</a>
+    </nav>
+    <div class="nav-actions">
+      <button id="cartBtn" class="icon-btn" type="button" aria-label="Open shopping bag">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 7h12l1 13H5L6 7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>
+        <span id="cartCount" class="cart-count" hidden>0</span>
+      </button>
+      <button id="menuBtn" class="icon-btn menu-btn" type="button" aria-label="Open menu" aria-expanded="false">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- ============ HERO : pinned 3D scroll carousel ============ -->
+  <section id="hero" aria-label="Drop 01 hero">
+    <div id="heroPin">
+      <div class="hero-watermark" aria-hidden="true">ROASLIFT</div>
+      <canvas id="heroCanvas" aria-hidden="true"></canvas>
+      <img id="heroFallback" src="images/jacket-brown-suede-bomber-web.jpg" alt="Cognac Suede Bomber" hidden>
+      <div class="hero-copy">
+        <p class="eyebrow">New drop &middot; Drop 01</p>
+        <h1 id="heroTitle">Wear the Rise.</h1>
+        <p id="heroTag" class="hero-tag">Cognac Suede Bomber &mdash; soft suede, clean bomber cut.</p>
+        <p id="heroPrice" class="hero-price">PKR 9,499</p>
+        <div class="hero-cta">
+          <a class="btn btn-primary" href="#viewer" id="heroViewBtn">View in 3D</a>
+          <button class="btn btn-ghost" type="button" id="heroAddBtn">Add to Bag</button>
+        </div>
+      </div>
+      <div class="hero-hint" aria-hidden="true">
+        <span class="mouse-icon"><span class="mouse-wheel"></span></span>
+        SCROLL TO TURN
+      </div>
+      <div class="hero-controls">
+        <button id="heroPrev" class="ctrl-btn" type="button" aria-label="Previous jacket">&lsaquo;</button>
+        <div id="heroDots" class="hero-dots" role="tablist" aria-label="Choose jacket"></div>
+        <button id="heroNext" class="ctrl-btn" type="button" aria-label="Next jacket">&rsaquo;</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PRODUCT VIEWER ============ -->
+  <section id="viewer" aria-label="3D product viewer">
+    <div class="section-head reveal">
+      <p class="eyebrow">3D Viewer</p>
+      <h2>Turn it. Zoom it. <span class="accent">Own it.</span></h2>
+      <p class="section-sub">Drag the jacket to spin it in real 3D. Every angle, before you buy.</p>
+    </div>
+    <div class="viewer-grid">
+      <div class="viewer-stage reveal">
+        <canvas id="viewerCanvas" aria-hidden="true"></canvas>
+        <img id="viewerFallback" src="images/jacket-brown-suede-bomber-web.jpg" alt="Cognac Suede Bomber" hidden>
+        <p class="drag-hint" aria-hidden="true">&larr; Drag to spin &rarr;</p>
+        <div class="zoom-controls">
+          <button id="zoomOut" class="ctrl-btn" type="button" aria-label="Zoom out">&minus;</button>
+          <button id="zoomReset" class="ctrl-btn zoom-reset" type="button" aria-label="Reset view">Reset</button>
+          <button id="zoomIn" class="ctrl-btn" type="button" aria-label="Zoom in">+</button>
+        </div>
+      </div>
+      <div class="viewer-panel reveal">
+        <p class="eyebrow" id="viewerEyebrow">Drop 01 &middot; Bomber</p>
+        <h3 id="viewerName">Cognac Suede Bomber</h3>
+        <p id="viewerPrice" class="viewer-price">PKR 9,499</p>
+        <p id="viewerDesc" class="viewer-desc">Soft suede bomber with a clean collar and a warm, broken-in feel.</p>
+        <div class="size-row">
+          <span class="field-label">Size</span>
+          <div class="size-btns" id="viewerSizes" role="group" aria-label="Choose size"></div>
+          <button class="link-btn" type="button" id="findSizeBtn">Find my size</button>
+        </div>
+        <div class="qty-row">
+          <span class="field-label">Quantity</span>
+          <div class="qty-ctrl">
+            <button id="qtyMinus" class="ctrl-btn" type="button" aria-label="Decrease quantity">&minus;</button>
+            <span id="qtyVal" aria-live="polite">1</span>
+            <button id="qtyPlus" class="ctrl-btn" type="button" aria-label="Increase quantity">+</button>
+          </div>
+        </div>
+        <button id="viewerAddBtn" class="btn btn-primary btn-wide" type="button">Add to Bag</button>
+        <button id="wishlistBtn" class="btn btn-ghost btn-wide" type="button" aria-pressed="false">&hearts; <span id="wishlistLabel">Add to wishlist</span></button>
+        <div class="trust-mini">
+          <div><strong>Delivery</strong><span>Across Pakistan</span></div>
+          <div><strong>Exchange</strong><span>Easy size swaps</span></div>
+          <div><strong>Made</strong><span>In small runs</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SIZE & FIT ============ -->
+  <section id="size" aria-label="Size and fit finder">
+    <div class="section-head reveal">
+      <p class="eyebrow">Size &amp; Fit</p>
+      <h2>Find your size in seconds.</h2>
+      <p class="section-sub">Measure once, order right. Our jackets follow a regular fit.</p>
+    </div>
+    <div class="size-grid">
+      <div class="size-table-card reveal">
+        <div class="unit-toggle" role="group" aria-label="Measurement unit">
+          <button id="unitCm" class="unit-btn active" type="button">cm</button>
+          <button id="unitIn" class="unit-btn" type="button">inches</button>
+        </div>
+        <table class="size-table">
+          <thead><tr><th>Size</th><th>Chest</th><th>Length</th><th>Fits height</th></tr></thead>
+          <tbody id="sizeTableBody"></tbody>
+        </table>
+      </div>
+      <div class="size-finder-card reveal">
+        <h3>Size finder</h3>
+        <p class="finder-note">Enter your height and weight and we will suggest a size.</p>
+        <div class="finder-fields">
+          <label>Height (cm)
+            <input id="inputHeight" type="number" min="130" max="220" placeholder="e.g. 175" inputmode="numeric">
+          </label>
+          <label>Weight (kg)
+            <input id="inputWeight" type="number" min="35" max="160" placeholder="e.g. 70" inputmode="numeric">
+          </label>
+        </div>
+        <fieldset class="radio-group">
+          <legend>Build</legend>
+          <label><input type="radio" name="build" value="slim"> Slim</label>
+          <label><input type="radio" name="build" value="average" checked> Average</label>
+          <label><input type="radio" name="build" value="broad"> Broad</label>
+        </fieldset>
+        <fieldset class="radio-group">
+          <legend>Fit you want</legend>
+          <label><input type="radio" name="fit" value="fitted"> Fitted</label>
+          <label><input type="radio" name="fit" value="regular" checked> Regular</label>
+          <label><input type="radio" name="fit" value="oversized"> Oversized</label>
+        </fieldset>
+        <button id="sizeFindBtn" class="btn btn-primary btn-wide" type="button" disabled>Select size</button>
+        <p id="sizeResult" class="size-result" aria-live="polite">Enter your height and weight to see your size.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ THE RISE (brand story) ============ -->
+  <section id="rise" aria-label="The ROASLift story">
+    <div class="rise-inner">
+      <div class="rise-head reveal">
+        <p class="eyebrow">The Rise</p>
+        <h2>Every jacket starts low<br>and <span class="accent">ends higher.</span></h2>
+      </div>
+      <svg class="rise-arrow" viewBox="0 0 120 60" aria-hidden="true">
+        <path d="M6 54 L46 32 L60 40 L74 28 L106 8" fill="none" stroke="#2E5AAC" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M90 6 L108 6 L108 24" fill="none" stroke="#2E5AAC" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <p class="rise-statement reveal">ROASLift is built on a simple idea: what you wear should lift you. Clean cuts, honest fabric, and fits made for real days &mdash; from a morning commute to a late night out. No noise. Just the rise.</p>
+      <div class="rise-cards">
+        <article class="rise-card reveal">
+          <h3>The Cut</h3>
+          <p>Regular fits with room to move. Drop shoulders, clean lines, and lengths that sit right over anything.</p>
+        </article>
+        <article class="rise-card reveal">
+          <h3>The Fabric</h3>
+          <p>Wool blends, soft suede, and sturdy workwear cloth &mdash; chosen to feel broken-in from the first wear.</p>
+        </article>
+        <article class="rise-card reveal">
+          <h3>The Fit</h3>
+          <p>Five sizes, one honest size guide, and easy swaps if the fit is not right. No guessing games.</p>
+        </article>
+      </div>
+      <div class="rise-stats reveal">
+        <div><strong>05</strong><span>Pieces in Drop 01</span></div>
+        <div><strong>05</strong><span>Sizes, S to XXL</span></div>
+        <div><strong>24&ndash;72h</strong><span>Delivery across Pakistan</span></div>
+        <div><strong>7 days</strong><span>Easy size swaps</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ DROP 01 GRID ============ -->
+  <section id="shop" aria-label="Drop 01 products">
+    <div class="section-head reveal">
+      <p class="eyebrow">Drop 01</p>
+      <h2>Five pieces. <span class="accent">Nothing else.</span></h2>
+      <p class="section-sub">Hover a piece to tilt it. Click to open it in the 3D viewer.</p>
+    </div>
+    <div id="productGrid" class="product-grid"></div>
+  </section>
+
+  <!-- ============ REVIEWS ============ -->
+  <section id="reviews" aria-label="Customer reviews">
+    <div class="section-head reveal">
+      <p class="eyebrow">Reviews</p>
+      <h2>Worn. Loved. <span class="accent">Rising.</span></h2>
+    </div>
+    <div class="review-grid">
+      <blockquote class="review-card reveal">
+        <p class="stars" aria-label="5 out of 5 stars">&starf;&starf;&starf;&starf;&starf;</p>
+        <p>&ldquo;The suede bomber is the best jacket I have owned in years. The fit guide got my size right on the first try.&rdquo;</p>
+        <footer>Ahmed &mdash; Karachi</footer>
+      </blockquote>
+      <blockquote class="review-card reveal">
+        <p class="stars" aria-label="5 out of 5 stars">&starf;&starf;&starf;&starf;&starf;</p>
+        <p>&ldquo;Ordered the work jacket for my brother. The fabric feels premium and the delivery was quick.&rdquo;</p>
+        <footer>Fatima &mdash; Lahore</footer>
+      </blockquote>
+      <blockquote class="review-card reveal">
+        <p class="stars" aria-label="4 out of 5 stars">&starf;&starf;&starf;&starf;&star;</p>
+        <p>&ldquo;Clean design, solid zips, and the black bomber goes with everything. My everyday jacket now.&rdquo;</p>
+        <footer>Bilal &mdash; Islamabad</footer>
+      </blockquote>
+    </div>
+  </section>
+
+  <!-- ============ TRUST STRIP ============ -->
+  <section id="trust" class="trust-strip" aria-label="Why shop with ROASLift">
+    <div><strong>Delivery</strong><span>Across Pakistan</span></div>
+    <div><strong>Exchange</strong><span>Easy size swaps</span></div>
+    <div><strong>Made</strong><span>In small runs</span></div>
+    <div><strong>Payment</strong><span>Cash on Delivery</span></div>
+  </section>
+</main>
+
+<!-- ============ FOOTER ============ -->
+<footer id="footer">
+  <div class="footer-cta reveal">
+    <h2>Ready to rise?</h2>
+    <p>Drop 01 is live. Small runs sell out fast.</p>
+    <a class="btn btn-primary" href="#shop">Shop Drop 01</a>
+  </div>
+  <div class="footer-grid">
+    <div class="footer-brand">
+      <img src="images/logo-light-web.png" alt="ROASLift" width="150" height="105" loading="lazy">
+      <p>Premium jackets, built to lift your everyday.</p>
+      <div class="social-links">
+        <a href="#" aria-label="Instagram (coming soon)">Instagram</a>
+        <a href="#" aria-label="Facebook (coming soon)">Facebook</a>
+        <a href="#" aria-label="TikTok (coming soon)">TikTok</a>
+      </div>
+    </div>
+    <nav aria-label="Shop">
+      <h4>Shop</h4>
+      <a href="#shop">Drop 01</a>
+      <a href="#viewer">3D Viewer</a>
+      <a href="#size">Size Guide</a>
+    </nav>
+    <nav aria-label="Brand">
+      <h4>Brand</h4>
+      <a href="#rise">The Rise</a>
+      <a href="#reviews">Reviews</a>
+      <a href="#trust">Delivery &amp; Returns</a>
+    </nav>
+    <div class="newsletter">
+      <h4>Get the next drop first</h4>
+      <p>One email when a new drop lands. No spam.</p>
+      <form id="newsletterForm" novalidate>
+        <label class="sr-only" for="newsletterEmail">Email address</label>
+        <input id="newsletterEmail" type="email" placeholder="Your email address" required>
+        <button class="btn btn-primary" type="submit">Join</button>
+      </form>
+      <p id="newsletterMsg" class="newsletter-msg" aria-live="polite"></p>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <p>&copy; 2026 ROASLift Clothes. All rights reserved.</p>
+  </div>
+</footer>
+
+<!-- ============ CART DRAWER ============ -->
+<div id="cartOverlay" class="overlay" hidden></div>
+<aside id="cartDrawer" class="drawer" aria-label="Shopping bag" aria-hidden="true">
+  <div class="drawer-head">
+    <h3>Your Bag</h3>
+    <button id="cartClose" class="icon-btn" type="button" aria-label="Close bag">&times;</button>
+  </div>
+  <div class="free-delivery">
+    <p id="freeDelMsg">Add PKR 10,000 more for FREE delivery</p>
+    <div class="progress"><span id="freeDelBar"></span></div>
+  </div>
+  <div id="cartItems" class="cart-items"></div>
+  <p id="cartEmpty" class="cart-empty">Your bag is empty. Add a jacket from Drop 01.</p>
+  <div class="drawer-foot">
+    <div class="total-row"><span>Subtotal</span><strong id="cartSubtotal">PKR 0</strong></div>
+    <div class="total-row muted"><span>Delivery</span><span id="cartDelivery">—</span></div>
+    <button id="checkoutBtn" class="btn btn-primary btn-wide" type="button" disabled>Checkout</button>
+  </div>
+</aside>
+
+<!-- ============ CHECKOUT MODAL ============ -->
+<div id="checkoutModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="checkoutTitle">
+  <div class="modal-box">
+    <button id="checkoutClose" class="icon-btn modal-close" type="button" aria-label="Close checkout">&times;</button>
+    <div id="checkoutFormView">
+      <h3 id="checkoutTitle">Checkout</h3>
+      <p class="checkout-summary" id="checkoutSummary"></p>
+      <form id="checkoutForm" novalidate>
+        <label>Full name
+          <input id="coName" type="text" placeholder="Your full name" required autocomplete="name">
+        </label>
+        <label>Phone
+          <input id="coPhone" type="tel" placeholder="03XX XXXXXXX" required autocomplete="tel">
+        </label>
+        <label>Address
+          <textarea id="coAddress" rows="2" placeholder="House, street, area" required autocomplete="street-address"></textarea>
+        </label>
+        <label>City
+          <input id="coCity" type="text" placeholder="e.g. Karachi" required autocomplete="address-level2">
+        </label>
+        <fieldset class="radio-group">
+          <legend>Payment</legend>
+          <label><input type="radio" name="payment" value="cod" checked> Cash on Delivery</label>
+        </fieldset>
+        <p id="checkoutError" class="form-error" aria-live="polite"></p>
+        <button class="btn btn-primary btn-wide" type="submit">Place Order</button>
+      </form>
+    </div>
+    <div id="checkoutSuccessView" hidden>
+      <p class="success-check" aria-hidden="true">&#10003;</p>
+      <h3>Order placed!</h3>
+      <p>Thank you, <span id="successName"></span>. Your order number is</p>
+      <p class="order-number" id="successOrderNo">RL-1001</p>
+      <p class="muted">We will call you to confirm your order. Delivery in 24&ndash;72 hours across Pakistan.</p>
+      <button id="successCloseBtn" class="btn btn-primary btn-wide" type="button">Continue Shopping</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
